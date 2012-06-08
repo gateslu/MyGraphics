@@ -18,7 +18,8 @@ SOURCES += main.cpp\
     mygraphicsscene.cpp \
     item/iRect.cpp \
     item/iEllipse.cpp \
-    item/iText.cpp
+    item/iText.cpp \
+    GluGraphicsView.cpp
 
 HEADERS  += mygraphics.h \
     mygraphicsscene.h \
@@ -26,6 +27,7 @@ HEADERS  += mygraphics.h \
     item/iRect.h \
     item/iEllipse.h \
     item/MyItem.h \
-    item/iText.h
+    item/iText.h \
+    GluGraphicsView.h
 
 FORMS    += mygraphics.ui

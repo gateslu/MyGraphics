@@ -5,6 +5,7 @@
 #include "qttreepropertybrowser.h"
 #include <QtGui>
 #include <QDebug>
+#include <QClipboard>
 
 const int OffsetIncrement = 5;
 const qint32 MagicNumber = 0x5A93DE5;
@@ -14,7 +15,8 @@ const QString MimeType = "application/vnd.qtrac.pagedesigner";
 
 MyGraphics::MyGraphics(QWidget *parent) :
     QMainWindow(parent),
-    ui(new Ui::MyGraphics)
+    ui(new Ui::MyGraphics),
+    pasteOffset(OffsetIncrement)
 {
     ui->setupUi(this);
 
@@ -26,7 +28,7 @@ MyGraphics::MyGraphics(QWidget *parent) :
 
     connect(scene, SIGNAL(itemClicked(QGraphicsItem*)), this, SLOT(itemClicked(QGraphicsItem*)));
 
-    view = new QGraphicsView;
+    view = new GluGraphicsView();
     view->setScene(scene);
     view->setDragMode(QGraphicsView::RubberBandDrag);     //可多选
     view->setBackgroundBrush(QBrush(Qt::white));
@@ -42,12 +44,13 @@ MyGraphics::MyGraphics(QWidget *parent) :
     QtVariantEditorFactory *variantFactory = new QtVariantEditorFactory(this);
 
 
-    QDockWidget *dock = new QDockWidget(this);
+    QDockWidget *dock = new QDockWidget(tr("属性"),this);
     addDockWidget(Qt::RightDockWidgetArea, dock);
 
     propertyEditor = new QtTreePropertyBrowser(dock);
     propertyEditor->setFactoryForManager(variantManager, variantFactory);
     dock->setWidget(propertyEditor);
+    dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 }
 
 MyGraphics::~MyGraphics()
@@ -107,11 +110,10 @@ bool MyGraphics::fileSave()
     if (!file.open(QIODevice::WriteOnly))
         return false;
     QDataStream out(&file);
-    out << MagicNumber << VersionNumber;
     out.setVersion(QDataStream::Qt_4_5);
     writeItems(out, scene->items());
     file.close();
-    setDirty(false);
+//    setDirty(false);
     return true;
 }
 
@@ -148,7 +150,7 @@ void MyGraphics::writeItems(QDataStream &out,
     //        default: Q_ASSERT(false);
     //        }
     //    }
-
+    out << MagicNumber << VersionNumber;
     int sceneItemsize = 0;
     for(int i=0;i<itemList.size();i++)
     {
@@ -228,7 +230,7 @@ void MyGraphics::loadFile()
     in.setVersion(QDataStream::Qt_4_5);
     clear();
     readItems(in);
-    setDirty(false);
+//    setDirty(false);
 }
 
 //清空scene
@@ -242,10 +244,11 @@ void MyGraphics::clear()
 }
 
 //读取文件中的item
-void MyGraphics::readItems(QDataStream &in)
+void MyGraphics::readItems(QDataStream &in, int offset, bool select)
 {
+    QSet<QGraphicsItem*> items;
     qint32 itemType;
-
+    QGraphicsItem *item = 0;
     qint32 magicNumber;
     qint16 versionNumber;
 
@@ -269,6 +272,7 @@ void MyGraphics::readItems(QDataStream &in)
             qreal zvalue;
             in >> zvalue;
             it->setZValue(zvalue);
+            item = it;
             break;
         }
         case MG_TYPE_IELLIPSE:
@@ -279,6 +283,7 @@ void MyGraphics::readItems(QDataStream &in)
             qreal zvalue;
             in >> zvalue;
             it->setZValue(zvalue);
+            item = it;
             break;
         }
         case MG_TYPE_ITEXT:
@@ -289,10 +294,21 @@ void MyGraphics::readItems(QDataStream &in)
             qreal zvalue;
             in >> zvalue;
             it->setZValue(zvalue);
+            item = it;
             break;
         }
         }
+        if (item) {
+            item->moveBy(offset, offset);
+            if (select)
+                items << item;
+            item = 0;
+        }
     }
+    if (select)
+        selectItems(items);
+//    else
+//        selectionChanged();
 }
 
 //清空scene
@@ -586,7 +602,96 @@ void MyGraphics::on_textiTemButton_clicked()
     iText *i = new iText;
     i->setPlainText("Text");
     i->setDefaultTextColor(QColor(Qt::blue));
+    i->setFont(QFont("宋体", 14));
     scene->addItem(i);
     i->setPos(originP);
     scene->selectedItem(i);
+}
+
+//刪除选择的item
+void MyGraphics::on_actionDelete_item_triggered()
+{
+    QList<QGraphicsItem*> items = scene->selectedItems();
+    if (items.isEmpty())
+        return;
+    QListIterator<QGraphicsItem*> i(items);
+    while (i.hasNext()) {
+#if QT_VERSION >= 0x040600
+        QScopedPointer<QGraphicsItem> item(i.next());
+        scene->removeItem(item.data());
+#else
+        QGraphicsItem *item = i.next();
+        scene->removeItem(item);
+        delete item;
+#endif
+    }
+    itemClicked(0);
+//    setDirty(true);             //窗口标题增加*,用来标记文件已被修改
+}
+
+void MyGraphics::copyItems(const QList<QGraphicsItem*> &items)
+{
+    QByteArray copiedItems;
+    QDataStream out(&copiedItems, QIODevice::WriteOnly);
+    writeItems(out, items);
+    QMimeData *mimeData = new QMimeData;
+    mimeData->setData(MimeType, copiedItems);
+    QClipboard *clipboard = QApplication::clipboard();
+    clipboard->setMimeData(mimeData);
+}
+
+void MyGraphics::selectItems(const QSet<QGraphicsItem *> &items)
+{
+    scene->clearSelection();
+    foreach (QGraphicsItem *item, items)
+        item->setSelected(true);
+}
+
+void MyGraphics::on_actionCopy_item_triggered()
+{
+    QList<QGraphicsItem*> items = scene->selectedItems();
+    if (items.isEmpty())
+        return;
+    pasteOffset = OffsetIncrement;
+    copyItems(items);
+}
+
+//剪切
+void MyGraphics::on_actionCut_item_triggered()
+{
+    QList<QGraphicsItem*> items = scene->selectedItems();
+    if (items.isEmpty())
+        return;
+    copyItems(items);
+    QListIterator<QGraphicsItem*> i(items);
+    while (i.hasNext()) {
+#if QT_VERSION >= 0x040600
+        QScopedPointer<QGraphicsItem> item(i.next());
+        scene->removeItem(item.data());
+#else
+        QGraphicsItem *item = i.next();
+        scene->removeItem(item);
+        delete item;
+#endif
+    }
+//    setDirty(true);
+}
+
+//粘贴
+void MyGraphics::on_actionPaste_item_triggered()
+{
+    QClipboard *clipboard = QApplication::clipboard();
+    const QMimeData *mimeData = clipboard->mimeData();
+    if (!mimeData)
+        return;
+
+    if (mimeData->hasFormat(MimeType)) {
+        QByteArray copiedItems = mimeData->data(MimeType);
+        QDataStream in(&copiedItems, QIODevice::ReadOnly);
+        readItems(in, pasteOffset, true);
+        pasteOffset += OffsetIncrement;
+    }
+    else
+        return;
+//    setDirty(true);
 }

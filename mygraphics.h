@@ -5,6 +5,7 @@
 #include <QtGui>
 #include <QtCore>
 #include "mygraphicsscene.h"
+#include "GluGraphicsView.h"
 #include "global_types.h"
 #include <QGraphicsItem>
 
@@ -31,7 +32,7 @@ public:
     void setDirty(bool on);
     void loadFile();
     void clear();
-    void readItems(QDataStream &in);
+    void readItems(QDataStream &in, int offset=0, bool select=false);
 
     void updateExpandState();
 
@@ -58,22 +59,32 @@ private slots:
 
     void on_textiTemButton_clicked();
 
+    void on_actionDelete_item_triggered();
+
+    void on_actionCopy_item_triggered();
+
+    void on_actionCut_item_triggered();
+
+    void on_actionPaste_item_triggered();
+
+private:
+    void copyItems(const QList<QGraphicsItem*> &items);
+    void selectItems(const QSet<QGraphicsItem*> &items);
+
 private:
     Ui::MyGraphics *ui;
-    QGraphicsView *view;
+    GluGraphicsView *view;
     MyGraphicsScene *scene;
 
     QPointF originP;
-
     class QtVariantPropertyManager *variantManager;
-
     class QtTreePropertyBrowser *propertyEditor;
-
     QGraphicsItem *currentItem;
     QMap<QtProperty *, QString> propertyToId;
     QMap<QString, QtVariantProperty *> idToProperty;
     QMap<QString, bool> idToExpanded;
 
+    int pasteOffset;
 };
 
 #endif // MYGRAPHICS_H
