@@ -355,7 +355,6 @@ void MyGraphics::itemClicked(QGraphicsItem *item)
 //        deleteAction->setEnabled(false);
         return;
     }
-
     //    qDebug() << item;
     //    qDebug() << "scenewidth:" << scene->width();
     //    qDebug() << "sceneheight:" << scene->height();
