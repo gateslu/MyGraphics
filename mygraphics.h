@@ -6,7 +6,9 @@
 #include <QtCore>
 #include "mygraphicsscene.h"
 #include "global_types.h"
+#include <QGraphicsItem>
 
+class QtVariantProperty;
 class QtProperty;
 
 namespace Ui {
@@ -33,7 +35,7 @@ public:
 
     void updateExpandState();
 
-    void addProperty(QtProperty *property, const QString &id);
+    void addProperty(QtVariantProperty *property, const QString &id);
 
 private slots:
     void on_toolButton_clicked();
@@ -52,31 +54,26 @@ private slots:
 
     void itemClicked(QGraphicsItem *item);
 
-    void valueChanged(QtProperty *property, double value);
-//    void valueChanged(QtProperty *property, const QString &value);
-//    void valueChanged(QtProperty *property, const QColor &value);
-//    void valueChanged(QtProperty *property, const QFont &value);
-//    void valueChanged(QtProperty *property, const QPoint &value);
-//    void valueChanged(QtProperty *property, const QSize &value);
+    void valueChanged(QtProperty *property, const QVariant &value);
+
+    void on_textiTemButton_clicked();
 
 private:
     Ui::MyGraphics *ui;
     QGraphicsView *view;
     MyGraphicsScene *scene;
 
-    QGraphicsItem *currentItem;
-    QMap<QtProperty *, QString> propertyToId;
-    QMap<QString, QtProperty *> idToProperty;
-    QMap<QString, bool> idToExpanded;
+    QPointF originP;
 
-    class QtDoublePropertyManager *doubleManager;
-    class QtStringPropertyManager *stringManager;
-    class QtColorPropertyManager *colorManager;
-    class QtFontPropertyManager *fontManager;
-    class QtPointFPropertyManager *pointfManager;
-    class QtSizeFPropertyManager *sizefManager;
+    class QtVariantPropertyManager *variantManager;
 
     class QtTreePropertyBrowser *propertyEditor;
+
+    QGraphicsItem *currentItem;
+    QMap<QtProperty *, QString> propertyToId;
+    QMap<QString, QtVariantProperty *> idToProperty;
+    QMap<QString, bool> idToExpanded;
+
 };
 
 #endif // MYGRAPHICS_H

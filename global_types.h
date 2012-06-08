@@ -9,7 +9,9 @@
 enum item_types
 {
     MG_TYPE_IRECT = Qt_USER_TYPE_BASE+50,
-    MG_TYPE_IELLIPSE = Qt_USER_TYPE_BASE+51
+    MG_TYPE_IELLIPSE,
+    MG_TYPE_ITEXT,
+    MG_TYPE_ILINE
 };
 typedef item_types ITEMTYPES;
 

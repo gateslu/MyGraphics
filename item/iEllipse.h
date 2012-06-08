@@ -3,7 +3,6 @@
 
 #include <QGraphicsEllipseItem>
 #include <QPen>
-#include <QGraphicsItem>
 
 class iEllipse : public QGraphicsEllipseItem
 {

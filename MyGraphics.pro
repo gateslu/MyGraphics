@@ -17,13 +17,15 @@ SOURCES += main.cpp\
         mygraphics.cpp \
     mygraphicsscene.cpp \
     item/iRect.cpp \
-    item/iEllipse.cpp
+    item/iEllipse.cpp \
+    item/iText.cpp
 
 HEADERS  += mygraphics.h \
     mygraphicsscene.h \
     global_types.h \
     item/iRect.h \
     item/iEllipse.h \
-    item/MyItem.h
+    item/MyItem.h \
+    item/iText.h
 
 FORMS    += mygraphics.ui

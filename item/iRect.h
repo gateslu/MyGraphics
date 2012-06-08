@@ -3,7 +3,6 @@
 
 #include <QGraphicsRectItem>
 #include <QPen>
-#include <QGraphicsItem>
 
 class iRect : public QGraphicsRectItem
 {

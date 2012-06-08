@@ -3,5 +3,6 @@
 
 #include "iEllipse.h"
 #include "iRect.h"
+#include "iText.h"
 
 #endif // MYITEM_H

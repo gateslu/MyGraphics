@@ -1,9 +1,8 @@
 #include "mygraphics.h"
 #include "ui_mygraphics.h"
 #include "item/MyItem.h"
-#include "src/qtpropertymanager.h"
-#include "src/qteditorfactory.h"
-#include "src/qttreepropertybrowser.h"
+#include "qtvariantproperty.h"
+#include "qttreepropertybrowser.h"
 #include <QtGui>
 #include <QDebug>
 
@@ -18,8 +17,12 @@ MyGraphics::MyGraphics(QWidget *parent) :
     ui(new Ui::MyGraphics)
 {
     ui->setupUi(this);
+
+
     scene = new MyGraphicsScene(this);
     scene->setSceneRect(QRectF(0, 0, 800, 800));
+
+    originP = QPointF(scene->width()/2, scene->height()/2);
 
     connect(scene, SIGNAL(itemClicked(QGraphicsItem*)), this, SLOT(itemClicked(QGraphicsItem*)));
 
@@ -31,50 +34,51 @@ MyGraphics::MyGraphics(QWidget *parent) :
 
     currentItem = 0;
 
-    doubleManager = new QtDoublePropertyManager(this);
-    stringManager = new QtStringPropertyManager(this);
-    colorManager = new QtColorPropertyManager(this);
-    fontManager = new QtFontPropertyManager(this);
-    pointfManager = new QtPointFPropertyManager(this);
-    sizefManager = new QtSizeFPropertyManager(this);
+    variantManager = new QtVariantPropertyManager(this);
 
-    connect(doubleManager, SIGNAL(valueChanged(QtProperty *, double)),
-                this, SLOT(valueChanged(QtProperty *, double)));
-    connect(stringManager, SIGNAL(valueChanged(QtProperty *, const QString &)),
-                this, SLOT(valueChanged(QtProperty *, const QString &)));
-    connect(colorManager, SIGNAL(valueChanged(QtProperty *, const QColor &)),
-                this, SLOT(valueChanged(QtProperty *, const QColor &)));
-    connect(fontManager, SIGNAL(valueChanged(QtProperty *, const QFont &)),
-                this, SLOT(valueChanged(QtProperty *, const QFont &)));
-    connect(pointfManager, SIGNAL(valueChanged(QtProperty *, const QPoint &)),
-                this, SLOT(valueChanged(QtProperty *, const QPoint &)));
-    connect(sizefManager, SIGNAL(valueChanged(QtProperty *, const QSize &)),
-                this, SLOT(valueChanged(QtProperty *, const QSize &)));
+    connect(variantManager, SIGNAL(valueChanged(QtProperty *, const QVariant &)),
+            this, SLOT(valueChanged(QtProperty *, const QVariant &)));
 
-    QtDoubleSpinBoxFactory *doubleSpinBoxFactory = new QtDoubleSpinBoxFactory(this);
-    QtCheckBoxFactory *checkBoxFactory = new QtCheckBoxFactory(this);
-    QtSpinBoxFactory *spinBoxFactory = new QtSpinBoxFactory(this);
-    QtLineEditFactory *lineEditFactory = new QtLineEditFactory(this);
-    QtEnumEditorFactory *comboBoxFactory = new QtEnumEditorFactory(this);
+    QtVariantEditorFactory *variantFactory = new QtVariantEditorFactory(this);
+
 
     QDockWidget *dock = new QDockWidget(this);
     addDockWidget(Qt::RightDockWidgetArea, dock);
 
     propertyEditor = new QtTreePropertyBrowser(dock);
-    propertyEditor->setFactoryForManager(doubleManager, doubleSpinBoxFactory);
-    propertyEditor->setFactoryForManager(stringManager, lineEditFactory);
-    propertyEditor->setFactoryForManager(colorManager->subIntPropertyManager(), spinBoxFactory);
-    propertyEditor->setFactoryForManager(fontManager->subIntPropertyManager(), spinBoxFactory);
-    propertyEditor->setFactoryForManager(fontManager->subBoolPropertyManager(), checkBoxFactory);
-    propertyEditor->setFactoryForManager(fontManager->subEnumPropertyManager(), comboBoxFactory);
-    propertyEditor->setFactoryForManager(pointfManager->subDoublePropertyManager(), doubleSpinBoxFactory);
-    propertyEditor->setFactoryForManager(sizefManager->subDoublePropertyManager(), doubleSpinBoxFactory);
+    propertyEditor->setFactoryForManager(variantManager, variantFactory);
     dock->setWidget(propertyEditor);
 }
 
 MyGraphics::~MyGraphics()
 {
     delete ui;
+}
+//矩形item
+void MyGraphics::on_toolButton_clicked()
+{
+    iRect *rect = new iRect;
+    rect->setRect(0,0,110,110);
+    rect->setBrush(QBrush(QColor(Qt::blue)));
+    scene->addItem(rect);
+    rect->setPos(originP);
+    scene->selectedItem(rect);
+    rect->setZValue(0.0);
+    qDebug() << rect->zValue();
+}
+
+//椭圆item
+void MyGraphics::on_toolButton_2_clicked()
+{
+    iEllipse *ellipse = new iEllipse;
+    ellipse->setRect(0,0,100,100);
+    ellipse->setBrush(QBrush(QColor(Qt::darkGreen)));
+    //    ellipse->setOpacity(0.7);
+    scene->addItem(ellipse);
+    ellipse->setPos(originP);
+    scene->selectedItem(ellipse);
+    ellipse->setZValue(0.0);
+    qDebug() << ellipse->zValue();
 }
 
 void MyGraphics::setDirty(bool on)
@@ -180,6 +184,15 @@ void MyGraphics::writeItems(QDataStream &out,
             out << piEllipse->zValue();
             break;
         }
+        case MG_TYPE_ITEXT:
+        {
+            out << iText::Type;
+            iText *piText = dynamic_cast<iText*>(itemList.at(i));
+            out << piText;
+            piText->setZValue(0.0-i);
+            out << piText->zValue();
+            break;
+        }
         default:
             Q_ASSERT(false);
         }
@@ -221,10 +234,10 @@ void MyGraphics::loadFile()
 //清空scene
 void MyGraphics::clear()
 {
-//    QList<QGraphicsItem*> list = scene->items();
-//    for (int i = 0; i < list.size(); ++i) {
-//        scene->removeItem(list.at(i));
-//    }
+    //    QList<QGraphicsItem*> list = scene->items();
+    //    for (int i = 0; i < list.size(); ++i) {
+    //        scene->removeItem(list.at(i));
+    //    }
     scene->clear();
 }
 
@@ -250,24 +263,32 @@ void MyGraphics::readItems(QDataStream &in)
         {
         case MG_TYPE_IRECT:
         {
-            iRect *irect = new iRect();
-            in >> irect;
-            scene->addItem(irect);
+            iRect *it = new iRect();
+            in >> it;
+            scene->addItem(it);
             qreal zvalue;
             in >> zvalue;
-            qDebug() << zvalue;
-            irect->setZValue(zvalue);
+            it->setZValue(zvalue);
             break;
         }
         case MG_TYPE_IELLIPSE:
         {
-            iEllipse *iellipse = new iEllipse();
-            in >> iellipse;
-            scene->addItem(iellipse);
+            iEllipse *it = new iEllipse();
+            in >> it;
+            scene->addItem(it);
             qreal zvalue;
             in >> zvalue;
-            qDebug() << zvalue;
-            iellipse->setZValue(zvalue);
+            it->setZValue(zvalue);
+            break;
+        }
+        case MG_TYPE_ITEXT:
+        {
+            iText *it = new iText();
+            in >> it;
+            scene->addItem(it);
+            qreal zvalue;
+            in >> zvalue;
+            it->setZValue(zvalue);
             break;
         }
         }
@@ -329,7 +350,7 @@ void MyGraphics::updateExpandState()
     }
 }
 
-void MyGraphics::addProperty(QtProperty *property, const QString &id)
+void MyGraphics::addProperty(QtVariantProperty *property, const QString &id)
 {
     propertyToId[property] = id;
     idToProperty[id] = property;
@@ -352,7 +373,7 @@ void MyGraphics::itemClicked(QGraphicsItem *item)
 
     currentItem = item;
     if (!currentItem) {
-//        deleteAction->setEnabled(false);
+        //        deleteAction->setEnabled(false);
         return;
     }
     //    qDebug() << item;
@@ -362,83 +383,91 @@ void MyGraphics::itemClicked(QGraphicsItem *item)
     //    qDebug() << "y:" << item->scenePos().y();
     //    qDebug() << "z:" << item->scenePos().y();
 
-//    deleteAction->setEnabled(true);
+    //    deleteAction->setEnabled(true);
 
-    QtProperty *property;
+    QtVariantProperty *property;
 
-    property = doubleManager->addProperty(tr("Position X"));
-    doubleManager->setRange(property, 0-scene->width()/2, scene->width()/2);
-    doubleManager->setValue(property, item->pos().x());
+    property = variantManager->addProperty(QVariant::Double, tr("Position X"));
+    property->setAttribute(QLatin1String("minimum"), 0-scene->width()/2);
+    property->setAttribute(QLatin1String("maximum"), scene->width()/2);
+    property->setValue(item->pos().x());
     addProperty(property, QLatin1String("xpos"));
 
-    property = doubleManager->addProperty(tr("Position Y"));
-    doubleManager->setRange(property, 0-scene->height()/2, scene->height()/2);
-    doubleManager->setValue(property, item->pos().y());
+    property = variantManager->addProperty(QVariant::Double, tr("Position Y"));
+    property->setAttribute(QLatin1String("minimum"), 0-scene->height()/2);
+    property->setAttribute(QLatin1String("maximum"), scene->height()/2);
+    property->setValue(item->pos().y());
     addProperty(property, QLatin1String("ypos"));
 
-    property = doubleManager->addProperty(tr("Position Z"));
-    doubleManager->setRange(property, -10000, 10000);
-    doubleManager->setValue(property, item->zValue());
+    property = variantManager->addProperty(QVariant::Double, tr("Position Z"));
+    property->setAttribute(QLatin1String("minimum"), -1000);
+    property->setAttribute(QLatin1String("maximum"), 1000);
+    property->setValue(item->zValue());
     addProperty(property, QLatin1String("zpos"));
 
-    if (item->type() == MG_TYPE_IRECT) {
+    if (item->type() == MG_TYPE_IRECT)
+    {
         iRect *i = (iRect *)item;
 
-        property = colorManager->addProperty(tr("Brush Color"));
-        colorManager->setValue(property, i->brush().color());
+        property = variantManager->addProperty(QVariant::Color, tr("Brush Color"));
+        property->setValue(i->brush().color());
         addProperty(property, QLatin1String("brush"));
 
-        property = colorManager->addProperty(tr("Pen Color"));
-        colorManager->setValue(property, i->pen().color());
+        property = variantManager->addProperty(QVariant::Color, tr("Pen Color"));
+        property->setValue(i->pen().color());
         addProperty(property, QLatin1String("pen"));
 
-        property = sizefManager->addProperty(tr("Size"));
-        sizefManager->setValue(property, i->rect().size());
-        addProperty(property, QLatin1String("size"));
-    } else if (item->type() == MG_TYPE_IELLIPSE) {
-        iEllipse *i = (iEllipse *)item;
-
-        property = colorManager->addProperty(tr("Brush Color"));
-        colorManager->setValue(property, i->brush().color());
-        addProperty(property, QLatin1String("brush"));
-
-        property = colorManager->addProperty(tr("Pen Color"));
-        colorManager->setValue(property, i->pen().color());
-        addProperty(property, QLatin1String("pen"));
-
-        property = sizefManager->addProperty(tr("Size"));
-        sizefManager->setValue(property, i->rect().size());
+        property = variantManager->addProperty(QVariant::SizeF, tr("Size"));
+        property->setValue(i->rect().size());
         addProperty(property, QLatin1String("size"));
     }
-//    else if (item->rtti() == QtCanvasItem::Rtti_Ellipse) {
-//        QtCanvasEllipse *i = (QtCanvasEllipse *)item;
+    else if (item->type() == MG_TYPE_IELLIPSE)
+    {
+        iEllipse *i = (iEllipse *)item;
 
-//        property = colorManager->addProperty(tr("Brush Color"));
-//        colorManager->setValue(property, i->brush().color());
-//        addProperty(property, QLatin1String("brush"));
+        property = variantManager->addProperty(QVariant::Color, tr("Brush Color"));
+        property->setValue(i->brush().color());
+        addProperty(property, QLatin1String("brush"));
 
-//        property = sizeManager->addProperty(tr("Size"));
-//        sizeManager->setValue(property, QSize(i->width(), i->height()));
-//        sizeManager->setRange(property, QSize(0, 0), QSize(1000, 1000));
-//        addProperty(property, QLatin1String("size"));
-//    } else if (item->rtti() == QtCanvasItem::Rtti_Text) {
-//        QtCanvasText *i = (QtCanvasText *)item;
+        property = variantManager->addProperty(QVariant::Color, tr("Pen Color"));
+        property->setValue(i->pen().color());
+        addProperty(property, QLatin1String("pen"));
 
-//        property = colorManager->addProperty(tr("Color"));
-//        colorManager->setValue(property, i->color());
-//        addProperty(property, QLatin1String("color"));
+        property = variantManager->addProperty(QVariant::SizeF, tr("Size"));
+        property->setValue(i->rect().size());
+        addProperty(property, QLatin1String("size"));
+    }
+    else if (item->type() == MG_TYPE_ITEXT)
+    {
+        iText *i = (iText *)item;
 
-//        property = stringManager->addProperty(tr("Text"));
-//        stringManager->setValue(property, i->text());
-//        addProperty(property, QLatin1String("text"));
+        property = variantManager->addProperty(QVariant::Color, tr("Color"));
+        property->setValue(i->defaultTextColor());
+        addProperty(property, QLatin1String("color"));
 
-//        property = fontManager->addProperty(tr("Font"));
-//        fontManager->setValue(property, i->font());
-//        addProperty(property, QLatin1String("font"));
-//    }
+        property = variantManager->addProperty(QVariant::String, tr("Text"));
+        property->setValue(i->toPlainText());
+        addProperty(property, QLatin1String("text"));
+
+        property = variantManager->addProperty(QVariant::Font, tr("Font"));
+        property->setValue(i->font());
+        addProperty(property, QLatin1String("font"));
+    }
+    //else if (item->rtti() == QtCanvasItem::Rtti_Line) {
+    //        QtCanvasLine *i = (QtCanvasLine *)item;
+
+    //        property = variantManager->addProperty(QVariant::Color, tr("Pen Color"));
+    //        property->setValue(i->pen().color());
+    //        addProperty(property, QLatin1String("pen"));
+
+    //        property = variantManager->addProperty(QVariant::Point, tr("Vector"));
+    //        property->setValue(i->endPoint());
+    //        addProperty(property, QLatin1String("endpoint"));
+    //    }
 }
 
-void MyGraphics::valueChanged(QtProperty *property, double value)
+//修改item属性
+void MyGraphics::valueChanged(QtProperty *property, const QVariant &value)
 {
     if (!propertyToId.contains(property))
         return;
@@ -447,36 +476,117 @@ void MyGraphics::valueChanged(QtProperty *property, double value)
         return;
 
     QString id = propertyToId[property];
-    if (id == QLatin1String("xpos")) {
-        currentItem->setX(value);
-        qDebug() << "xpos" << value;
-    } else if (id == QLatin1String("ypos")) {
-        currentItem->setY(value);
-    } else if (id == QLatin1String("zpos")) {
-        currentItem->setZValue(value);
+    if (id == QLatin1String("xpos"))
+    {
+        currentItem->setX(value.toDouble());
+    }
+    else if (id == QLatin1String("ypos"))
+    {
+        currentItem->setY(value.toDouble());
+    }
+    else if (id == QLatin1String("zpos"))
+    {
+        currentItem->setZValue(value.toDouble());
+    }
+    else if (id == QLatin1String("text"))
+    {
+        if (currentItem->type() == MG_TYPE_ITEXT)
+        {
+            QGraphicsTextItem *i = (QGraphicsTextItem *)currentItem;  //textitem
+            i->setPlainText(qVariantValue<QString>(value));
+        }
+    }
+    else if (id == QLatin1String("brush"))
+    {
+        if (currentItem->type() == MG_TYPE_IRECT)
+        {
+            iRect *i = (iRect *)currentItem;
+            QBrush b = i->brush();
+            b.setColor(qVariantValue<QColor>(value));
+            i->setBrush(b);
+        }
+        else if(currentItem->type() == MG_TYPE_IELLIPSE)
+        {
+            iEllipse *i = (iEllipse *)currentItem;
+            QBrush b = i->brush();
+            b.setColor(qVariantValue<QColor>(value));
+            i->setBrush(b);
+        }
+    }
+    else if (id == QLatin1String("color"))
+    {
+        if (currentItem->type() == MG_TYPE_ITEXT)
+        {
+            iText *i = (iText *)currentItem;
+            i->setDefaultTextColor(qVariantValue<QColor>(value));
+        }
+    }
+    else if (id == QLatin1String("pen"))
+    {
+        if (currentItem->type() == MG_TYPE_IRECT)
+        {
+            iRect *i = (iRect *)currentItem;
+            QPen p = i->pen();
+            p.setColor(qVariantValue<QColor>(value));
+            i->setPen(p);
+        }
+        else if(currentItem->type() == MG_TYPE_IELLIPSE)
+        {
+            iEllipse *i = (iEllipse *)currentItem;
+            QPen p = i->pen();
+            p.setColor(qVariantValue<QColor>(value));
+            i->setPen(p);
+        }
+        else if(currentItem->type() == MG_TYPE_ILINE)
+        {
+        }
+    }
+    else if (id == QLatin1String("font"))
+    {
+        if (currentItem->type() == MG_TYPE_ITEXT)
+        {
+            iText *i = (iText *)currentItem;
+            i->setFont(qVariantValue<QFont>(value));
+        }
+    }
+    //    else if (id == QLatin1String("endpoint"))
+    //    {
+    //        if (currentItem->type() == MG_TYPE_ILINE)
+    //        {
+    ////            QtCanvasLine *i = (QtCanvasLine *)currentItem;
+    ////            QPoint p = qVariantValue<QPoint>(value);
+    ////            i->setPoints(i->startPoint().x(), i->startPoint().y(), p.x(), p.y());
+    //        }
+    //    }
+    else if (id == QLatin1String("size"))
+    {
+        if (currentItem->type() == MG_TYPE_IRECT)
+        {
+            iRect *i = (iRect *)currentItem;
+            QSizeF s = qVariantValue<QSizeF>(value);
+            QPointF p = i->rect().topLeft();
+            QRectF r(p, s);
+            i->setRect(r);
+        }
+        else if(currentItem->type() == MG_TYPE_IELLIPSE)
+        {
+            iEllipse *i = (iEllipse *)currentItem;
+            QSizeF s = qVariantValue<QSizeF>(value);
+            QPointF p = i->rect().topLeft();
+            QRectF r(p, s);
+            i->setRect(r);
+        }
     }
     scene->update();
 }
 
-void MyGraphics::on_toolButton_clicked()
+//文本item
+void MyGraphics::on_textiTemButton_clicked()
 {
-    iRect *rect = new iRect;
-    rect->setRect(350,350,110,110);
-    rect->setBrush(QBrush(QColor(Qt::blue)));
-    scene->addItem(rect);
-    scene->selectedItem(rect);
-    rect->setZValue(0.0);
-    qDebug() << rect->zValue();
-}
-
-void MyGraphics::on_toolButton_2_clicked()
-{
-    iEllipse *ellipse = new iEllipse;
-    ellipse->setRect(350,350,100,100);
-    ellipse->setBrush(QBrush(QColor(Qt::darkGreen)));
-//    ellipse->setOpacity(0.7);
-    scene->addItem(ellipse);
-    scene->selectedItem(ellipse);
-    ellipse->setZValue(0.0);
-    qDebug() << ellipse->zValue();
+    iText *i = new iText;
+    i->setPlainText("Text");
+    i->setDefaultTextColor(QColor(Qt::blue));
+    scene->addItem(i);
+    i->setPos(originP);
+    scene->selectedItem(i);
 }
