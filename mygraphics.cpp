@@ -11,7 +11,7 @@ const int OffsetIncrement = 5;
 const qint32 MagicNumber = 0x5A93DE5;
 const qint16 VersionNumber = 1;
 const QString MostRecentFile("MostRecentFile");
-const QString MimeType = "application/vnd.qtrac.pagedesigner";
+const QString MimeType = "application/MyGraphic";
 
 MyGraphics::MyGraphics(QWidget *parent) :
     QMainWindow(parent),
@@ -20,13 +20,14 @@ MyGraphics::MyGraphics(QWidget *parent) :
 {
     ui->setupUi(this);
 
-
     scene = new MyGraphicsScene(this);
     scene->setSceneRect(QRectF(0, 0, 800, 800));
 
     originP = QPointF(scene->width()/2, scene->height()/2);
 
     connect(scene, SIGNAL(itemClicked(QGraphicsItem*)), this, SLOT(itemClicked(QGraphicsItem*)));
+    connect(scene, SIGNAL(itemMoved(QGraphicsItem*)), this, SLOT(itemMoved(QGraphicsItem*)));
+    connect(scene, SIGNAL(selectionChanged()), this, SLOT(selectionChanged()));
 
     view = new GluGraphicsView();
     view->setScene(scene);
@@ -84,6 +85,7 @@ void MyGraphics::on_toolButton_2_clicked()
     qDebug() << ellipse->zValue();
 }
 
+//更新窗口修改标志*
 void MyGraphics::setDirty(bool on)
 {
     setWindowModified(on);
@@ -113,7 +115,7 @@ bool MyGraphics::fileSave()
     out.setVersion(QDataStream::Qt_4_5);
     writeItems(out, scene->items());
     file.close();
-//    setDirty(false);
+    //    setDirty(false);
     return true;
 }
 
@@ -230,7 +232,7 @@ void MyGraphics::loadFile()
     in.setVersion(QDataStream::Qt_4_5);
     clear();
     readItems(in);
-//    setDirty(false);
+    //    setDirty(false);
 }
 
 //清空scene
@@ -307,8 +309,8 @@ void MyGraphics::readItems(QDataStream &in, int offset, bool select)
     }
     if (select)
         selectItems(items);
-//    else
-//        selectionChanged();
+    //    else
+    //        selectionChanged();
 }
 
 //清空scene
@@ -355,6 +357,7 @@ void MyGraphics::on_actionBringtofront_triggered()
     itemClicked(selectedItem);
 }
 
+//展开
 void MyGraphics::updateExpandState()
 {
     QList<QtBrowserItem *> list = propertyEditor->topLevelItems();
@@ -366,6 +369,7 @@ void MyGraphics::updateExpandState()
     }
 }
 
+//增加属性
 void MyGraphics::addProperty(QtVariantProperty *property, const QString &id)
 {
     propertyToId[property] = id;
@@ -375,6 +379,7 @@ void MyGraphics::addProperty(QtVariantProperty *property, const QString &id)
         propertyEditor->setExpanded(item, idToExpanded[id]);
 }
 
+//item点击效果实现
 void MyGraphics::itemClicked(QGraphicsItem *item)
 {
     updateExpandState();
@@ -404,14 +409,14 @@ void MyGraphics::itemClicked(QGraphicsItem *item)
     QtVariantProperty *property;
 
     property = variantManager->addProperty(QVariant::Double, tr("Position X"));
-    property->setAttribute(QLatin1String("minimum"), 0-scene->width()/2);
-    property->setAttribute(QLatin1String("maximum"), scene->width()/2);
+    property->setAttribute(QLatin1String("minimum"), 0);
+    property->setAttribute(QLatin1String("maximum"), scene->width());
     property->setValue(item->pos().x());
     addProperty(property, QLatin1String("xpos"));
 
     property = variantManager->addProperty(QVariant::Double, tr("Position Y"));
-    property->setAttribute(QLatin1String("minimum"), 0-scene->height()/2);
-    property->setAttribute(QLatin1String("maximum"), scene->height()/2);
+    property->setAttribute(QLatin1String("minimum"), 0);
+    property->setAttribute(QLatin1String("maximum"), scene->height());
     property->setValue(item->pos().y());
     addProperty(property, QLatin1String("ypos"));
 
@@ -480,6 +485,35 @@ void MyGraphics::itemClicked(QGraphicsItem *item)
     //        property->setValue(i->endPoint());
     //        addProperty(property, QLatin1String("endpoint"));
     //    }
+}
+
+//选取
+void MyGraphics::selectionChanged()
+{
+    QList<QGraphicsItem*> items = scene->selectedItems();
+    if (items.count() == 1) {
+        itemClicked(items.at(0));
+    }
+    else if (items.count() == 0)
+    {
+        itemClicked(0);
+    }
+}
+
+//移动item
+void MyGraphics::itemMoved(QGraphicsItem *item)
+{
+    if (item != currentItem)
+        return;
+
+    disconnect(variantManager, SIGNAL(valueChanged(QtProperty *, const QVariant &)),
+            this, SLOT(valueChanged(QtProperty *, const QVariant &)));
+
+    variantManager->setValue(idToProperty[QLatin1String("xpos")], item->pos().x());
+    variantManager->setValue(idToProperty[QLatin1String("ypos")], item->pos().y());
+
+    connect(variantManager, SIGNAL(valueChanged(QtProperty *, const QVariant &)),
+            this, SLOT(valueChanged(QtProperty *, const QVariant &)));
 }
 
 //修改item属性
@@ -626,9 +660,10 @@ void MyGraphics::on_actionDelete_item_triggered()
 #endif
     }
     itemClicked(0);
-//    setDirty(true);             //窗口标题增加*,用来标记文件已被修改
+    //    setDirty(true);             //窗口标题增加*,用来标记文件已被修改
 }
 
+//复制item实现
 void MyGraphics::copyItems(const QList<QGraphicsItem*> &items)
 {
     QByteArray copiedItems;
@@ -640,6 +675,7 @@ void MyGraphics::copyItems(const QList<QGraphicsItem*> &items)
     clipboard->setMimeData(mimeData);
 }
 
+//选取item
 void MyGraphics::selectItems(const QSet<QGraphicsItem *> &items)
 {
     scene->clearSelection();
@@ -647,6 +683,7 @@ void MyGraphics::selectItems(const QSet<QGraphicsItem *> &items)
         item->setSelected(true);
 }
 
+//复制
 void MyGraphics::on_actionCopy_item_triggered()
 {
     QList<QGraphicsItem*> items = scene->selectedItems();
@@ -674,7 +711,7 @@ void MyGraphics::on_actionCut_item_triggered()
         delete item;
 #endif
     }
-//    setDirty(true);
+    //    setDirty(true);
 }
 
 //粘贴
@@ -693,5 +730,5 @@ void MyGraphics::on_actionPaste_item_triggered()
     }
     else
         return;
-//    setDirty(true);
+    //    setDirty(true);
 }

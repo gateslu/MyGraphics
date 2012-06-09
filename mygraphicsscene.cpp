@@ -21,25 +21,35 @@ void MyGraphicsScene::mousePressEvent(QGraphicsSceneMouseEvent *event)
     if (event->button() != Qt::LeftButton)
         return;
     QGraphicsScene::mousePressEvent(event);
-//    QPoint p = inverseWorldMatrix().map(event->pos());
+    //    QPoint p = inverseWorldMatrix().map(event->pos());
+    QPointF p = event->scenePos();
     QList<QGraphicsItem*> l = this->selectedItems();
     moving = 0;
-//    qDebug() << l.size();
+    //    qDebug() << l.size();
     if (!l.isEmpty())
     {
         moving = l.first();
     }
+    moving_start = p;
+    qDebug() << p;
     emit itemClicked(moving);
-
-//    moving_start = p;
 }
 
 void MyGraphicsScene::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 {
+    if (moving) {
+        this->update();
+        emit itemMoved(moving);
+    }
     QGraphicsScene::mouseMoveEvent(event);
 }
 
 void MyGraphicsScene::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 {
     QGraphicsScene::mouseReleaseEvent(event);
+}
+
+void MyGraphicsScene::dragMoveEvent(QGraphicsSceneDragDropEvent *event)
+{
+    QGraphicsScene::dragMoveEvent(event);
 }

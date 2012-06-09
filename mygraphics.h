@@ -55,6 +55,10 @@ private slots:
 
     void itemClicked(QGraphicsItem *item);
 
+    void itemMoved(QGraphicsItem *item);
+
+    void selectionChanged();
+
     void valueChanged(QtProperty *property, const QVariant &value);
 
     void on_textiTemButton_clicked();

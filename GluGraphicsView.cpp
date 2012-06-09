@@ -25,6 +25,17 @@ void GluGraphicsView::wheelEvent(QWheelEvent *event)
         transform.scale(tmp, tmp);
         setTransform(transform);
     }
+    else {
+        QGraphicsView::wheelEvent(event);
+    }
+//    else if (QApplication::keyboardModifiers () == Qt::AltModifier)
+//    {
+//        event->delta()>0 ? this->scroll(0, 50) : this->scroll(0, -50);
+//    }
+//    else
+//    {
+//        event->delta()>0 ? this->scroll(50, 0) : this->scroll(-50, 0);
+//    }
 }
 
 void GluGraphicsView::mouseDoubleClickEvent(QMouseEvent *event)

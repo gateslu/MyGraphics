@@ -2,6 +2,7 @@
 #define MYGRAPHICSSCENE_H
 
 #include <QGraphicsSceneMouseEvent>
+#include <QGraphicsSceneDragDropEvent>
 #include <QGraphicsScene>
 #include <QGraphicsItem>
 #include <QObject>
@@ -15,14 +16,18 @@ public:
 
 signals:
     void itemClicked(QGraphicsItem *item);
+    void itemMoved(QGraphicsItem *item);
+    void itemStopMoving(bool released);
 
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent *event);
     void mouseMoveEvent(QGraphicsSceneMouseEvent *event);
     void mouseReleaseEvent(QGraphicsSceneMouseEvent *event);
+    void dragMoveEvent(QGraphicsSceneDragDropEvent *event);
 
 private:
     QGraphicsItem *moving;
+    QPointF moving_start;
 };
 
 #endif // MYGRAPHICSSCENE_H
