@@ -2,12 +2,15 @@
 #define IRECT_H
 
 #include <QGraphicsRectItem>
+#include <QObject>
 #include <QPen>
 
-class iRect : public QGraphicsRectItem
+class iRect : public QObject, public QGraphicsRectItem
 {
+    Q_OBJECT
+    Q_PROPERTY(QPointF pos READ pos WRITE setPos)
 public:
-    iRect();
+    explicit iRect();
     enum { Type = UserType + 50 };
     int type() const
       { return Type;}

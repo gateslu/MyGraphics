@@ -1,11 +1,42 @@
+#include "aqp/alt_key.hpp"
+#include "aqp/aqp.hpp"
 #include "mygraphics.h"
 #include "ui_mygraphics.h"
 #include "item/MyItem.h"
 #include "qtvariantproperty.h"
 #include "qttreepropertybrowser.h"
 #include <QtGui>
-#include <QDebug>
+#include <QAction>
+#include <QApplication>
 #include <QClipboard>
+#include <QCloseEvent>
+#include <QDesktopWidget>
+#include <QDockWidget>
+#include <QFile>
+#include <QFileDialog>
+#include <QGraphicsItemGroup>
+#include <QGraphicsScene>
+#include <QImageWriter>
+#include <QMenu>
+#include <QMenuBar>
+#ifdef ANIMATE_ALIGNMENT
+#include <QPropertyAnimation>
+#endif
+#ifdef ANIMATE_IN_PARALLEL
+#include <QParallelAnimationGroup>
+#endif
+#include <QPrintDialog>
+#include <QSettings>
+#include <QStatusBar>
+#include <QTimer>
+#include <QToolBar>
+#ifdef USE_STL
+#include <algorithm>
+#endif
+#include <cmath>
+#include <limits>
+#include <QDebug>
+#include <QSvgGenerator>
 
 const int OffsetIncrement = 5;
 const qint32 MagicNumber = 0x5A93DE5;
@@ -19,6 +50,12 @@ MyGraphics::MyGraphics(QWidget *parent) :
     pasteOffset(OffsetIncrement)
 {
     ui->setupUi(this);
+
+    printer = new QPrinter(QPrinter::HighResolution);
+
+    createActions();
+    createMenusAndToolBars();
+    createConnections();
 
     scene = new MyGraphicsScene(this);
     scene->setSceneRect(QRectF(0, 0, 800, 800));
@@ -56,18 +93,279 @@ MyGraphics::MyGraphics(QWidget *parent) :
 
 MyGraphics::~MyGraphics()
 {
+    delete printer;
     delete ui;
 }
+
+//输出视图
+void MyGraphics::fileExport()
+{
+    QString suffixes = AQP::filenameFilter(tr("Bitmap image"),
+            QImageWriter::supportedImageFormats());
+    suffixes += tr(";;Vector image (*.svg)");
+    const QString filename = QFileDialog::getSaveFileName(this,
+            tr("%1 - Export").arg(QApplication::applicationName()),
+            ".", suffixes);
+    if (filename.isEmpty())
+        return;
+    if (filename.toLower().endsWith(".svg"))
+        exportSvg(filename);
+    else
+        exportImage(filename);
+}
+
+//输出scene的内容
+void MyGraphics::paintScene(QPainter *painter)
+{
+//    bool showGrid = viewShowGridAction->isChecked();
+//    if (showGrid)
+//        viewShowGrid(false);
+    QList<QGraphicsItem*> items = scene->selectedItems();
+    scene->clearSelection();
+
+    scene->render(painter);
+
+//    if (showGrid)
+//        viewShowGrid(true);
+    foreach (QGraphicsItem *item, items)
+        item->setSelected(true);
+    selectionChanged();
+}
+
+//输出为svg
+void MyGraphics::exportSvg(const QString &filename)
+{
+    QSvgGenerator svg;
+    svg.setFileName(filename);
+    svg.setSize(printer->paperSize(QPrinter::Point).toSize());
+    {
+        QPainter painter(&svg);
+        paintScene(&painter);
+    }
+    statusBar()->showMessage(tr("Exported %1").arg(filename),
+                             1000);
+}
+
+//输出为图片
+void MyGraphics::exportImage(const QString &filename)
+{
+    QImage image(printer->paperSize(QPrinter::Point).toSize(),
+                 QImage::Format_ARGB32);
+    {
+        QPainter painter(&image);
+        painter.setRenderHints(QPainter::Antialiasing|
+                               QPainter::TextAntialiasing);
+        paintScene(&painter);
+    }
+    if (image.save(filename))
+        statusBar()->showMessage(tr("Exported %1").arg(filename),
+                                 2000);
+    else
+        AQP::warning(this, tr("Error"), tr("Failed to export: %1")
+                                        .arg(filename));
+}
+
+//打印
+void MyGraphics::filePrint()
+{
+    QPrintDialog dialog(printer);
+    if (dialog.exec()) {
+        {
+            QPainter painter(printer);
+            paintScene(&painter);
+        }
+        statusBar()->showMessage(tr("Printed %1")
+                .arg(windowFilePath()), 2000);
+    }
+}
+
+//创建Action
+void MyGraphics::createActions()
+{
+    fileExportAction = new QAction(QIcon(":images/fileexport.png"),
+            tr("Export..."), this);
+    filePrintAction = new QAction(QIcon(":images/fileprint.png"),
+            tr("Print..."), this);
+
+    editAlignmentAction = new QAction(QIcon(":images/align-left.png"),
+                                      tr("Alignment"), this);
+    editAlignmentAction->setData(Qt::AlignLeft);
+    editAlignLeftAction = new QAction(QIcon(":images/align-left.png"),
+                                      tr("Left"), this);
+    editAlignLeftAction->setData(Qt::AlignLeft);
+    editAlignRightAction = new QAction(QIcon(":images//align-right.png"),
+                                       tr("Right"), this);
+    editAlignRightAction->setData(Qt::AlignRight);
+    editAlignTopAction = new QAction(QIcon(":images//align-top.png"),
+                                     tr("Top"), this);
+    editAlignTopAction->setData(Qt::AlignTop);
+    editAlignBottomAction = new QAction(QIcon(":images//align-bottom.png"),
+                                        tr("Bottom"), this);
+    editAlignBottomAction->setData(Qt::AlignBottom);
+}
+
+//创建menu和toolbar
+void MyGraphics::createMenusAndToolBars()
+{
+    QAction *separator = 0;
+    setUnifiedTitleAndToolBarOnMac(true);
+
+    QMenu *fileMenu = menuBar()->addMenu(tr("File"));
+    QToolBar *fileToolBar = addToolBar(tr("File"));
+    populateMenuAndToolBar(fileMenu, fileToolBar, QList<QAction*>()
+            << fileExportAction << separator << filePrintAction);
+
+    QMenu *alignmentMenu = new QMenu(tr("Align"), this);
+    foreach (QAction *action, QList<QAction*>()
+            << editAlignLeftAction << editAlignRightAction
+            << editAlignTopAction << editAlignBottomAction)
+        alignmentMenu->addAction(action);
+    editAlignmentAction->setMenu(alignmentMenu);
+
+    QMenu *editMenu = menuBar()->addMenu(tr("Edit"));
+    QToolBar *editToolBar = addToolBar(tr("Edit"));
+    populateMenuAndToolBar(editMenu, editToolBar, QList<QAction*>()
+                           << editAlignmentAction);
+}
+
+//创建连接
+void MyGraphics::createConnections()
+{
+    connect(fileExportAction, SIGNAL(triggered()),
+            this, SLOT(fileExport()));
+    connect(filePrintAction, SIGNAL(triggered()),
+            this, SLOT(filePrint()));
+
+    foreach (QAction *action, QList<QAction*>()
+            << editAlignmentAction << editAlignLeftAction
+            << editAlignRightAction << editAlignTopAction
+            << editAlignBottomAction)
+        connect(action, SIGNAL(triggered()), this, SLOT(editAlign()));
+}
+
+void MyGraphics::populateCoordinates(const Qt::Alignment &alignment,
+                                     QVector<double> *coordinates,
+                                     const QList<QGraphicsItem *> &items)
+{
+    QListIterator<QGraphicsItem*> i(items);
+    while (i.hasNext()) {
+        QRectF rect = i.next()->sceneBoundingRect();
+        switch (alignment) {
+            case Qt::AlignLeft:
+                coordinates->append(rect.x()); break;
+            case Qt::AlignRight:
+                coordinates->append(rect.x() + rect.width()); break;
+            case Qt::AlignTop:
+                coordinates->append(rect.y()); break;
+            case Qt::AlignBottom:
+                coordinates->append(rect.y() + rect.height()); break;
+        }
+    }
+}
+
+//item对齐
+void MyGraphics::editAlign()
+{
+    QAction *action = qobject_cast<QAction*>(sender());
+    if (!action)
+        return;
+
+    Qt::Alignment alignment = static_cast<Qt::Alignment>(
+            action->data().toInt());
+    if (action != editAlignmentAction) {
+        editAlignmentAction->setData(action->data());
+        editAlignmentAction->setIcon(action->icon());
+    }
+
+    QList<QGraphicsItem*> items = scene->selectedItems();
+    QVector<double> coordinates;
+    populateCoordinates(alignment, &coordinates, items);
+    double offset;
+    if (alignment == Qt::AlignLeft || alignment == Qt::AlignTop)
+        offset = *std::min_element(coordinates.constBegin(),
+                                   coordinates.constEnd());
+    else
+        offset = *std::max_element(coordinates.constBegin(),
+                                   coordinates.constEnd());
+
+
+    QList<QPointF> positions;
+    if (alignment == Qt::AlignLeft || alignment == Qt::AlignRight) {
+        for (int i = 0; i < items.count(); ++i)
+            positions << items.at(i)->pos() +
+                         QPointF(offset - coordinates.at(i), 0);
+    }
+    else {
+        for (int i = 0; i < items.count(); ++i)
+            positions << items.at(i)->pos() +
+                         QPointF(0, offset - coordinates.at(i));
+    }
+
+    animateAlignment(items, positions);
+//    setDirty(true);
+}
+
+//创建populateMenuAndToolBar
+void MyGraphics::populateMenuAndToolBar(QMenu *menu,
+        QToolBar *toolBar, QList<QAction*> actions)
+{
+#ifdef Q_WS_MAC
+    toolBar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+#endif
+    foreach (QAction *action, actions) {
+        if (!action) {
+            menu->addSeparator();
+            toolBar->addSeparator();
+        }
+        else {
+            menu->addAction(action);
+            toolBar->addAction(action);
+        }
+    }
+}
+
+void MyGraphics::animateAlignment(const QList<QGraphicsItem*> &items,
+                                  const QList<QPointF> &positions)
+{
+    int duration = ((qApp->keyboardModifiers() & Qt::ShiftModifier)
+                    != Qt::ShiftModifier) ? 1000 : 5000;
+
+#ifdef ANIMATE_IN_PARALLEL
+    QParallelAnimationGroup *group = new QParallelAnimationGroup;
+#endif
+    for (int i = 0; i < items.count(); ++i) {
+        QObject *object = dynamic_cast<QObject*>(items.at(i));
+        if (!object)
+            continue;
+        QPropertyAnimation *animation = new QPropertyAnimation(
+                object, "pos", this);
+        animation->setDuration(duration);
+        animation->setEasingCurve(QEasingCurve::InOutBack);
+#ifdef ANIMATE_IN_PARALLEL
+        animation->setStartValue(items.at(i)->pos());
+        animation->setEndValue(positions.at(i));
+        group->addAnimation(animation);
+#else
+        animation->setKeyValueAt(0.0, items.at(i)->pos());
+        animation->setKeyValueAt(1.0, positions.at(i));
+        animation->start(QAbstractAnimation::DeleteWhenStopped);
+#endif
+    }
+#ifdef ANIMATE_IN_PARALLEL
+    group->start(QAbstractAnimation::DeleteWhenStopped);
+#endif
+}
+
 //矩形item
 void MyGraphics::on_toolButton_clicked()
 {
     iRect *rect = new iRect;
-    rect->setRect(0,0,110,110);
-    rect->setBrush(QBrush(QColor(Qt::blue)));
+//    rect->setRect(0,0,110,110);
+//    rect->setBrush(QBrush(QColor(Qt::blue)));
     scene->addItem(rect);
-    rect->setPos(originP);
+//    rect->setPos(originP);
     scene->selectedItem(rect);
-    rect->setZValue(0.0);
+//    rect->setZValue(0.0);
     qDebug() << rect->zValue();
 }
 
@@ -426,6 +724,12 @@ void MyGraphics::itemClicked(QGraphicsItem *item)
     property->setValue(item->zValue());
     addProperty(property, QLatin1String("zpos"));
 
+    property = variantManager->addProperty(QVariant::Double, tr("Angle"));
+    property->setAttribute(QLatin1String("minimum"), -360.0);
+    property->setAttribute(QLatin1String("maximum"), 360.0);
+    property->setValue(item->rotation());
+    addProperty(property, QLatin1String("angle"));
+
     if (item->type() == MG_TYPE_IRECT)
     {
         iRect *i = (iRect *)item;
@@ -537,6 +841,10 @@ void MyGraphics::valueChanged(QtProperty *property, const QVariant &value)
     else if (id == QLatin1String("zpos"))
     {
         currentItem->setZValue(value.toDouble());
+    }
+    else if (id == QLatin1String("angle"))
+    {
+        currentItem->setRotation(value.toDouble());
     }
     else if (id == QLatin1String("text"))
     {

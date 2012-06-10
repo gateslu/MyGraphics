@@ -1,0 +1,38 @@
+<RCC>
+    <qresource prefix="/">
+        <file>images/align-bottom.png</file>
+        <file>images/align-left.png</file>
+        <file>images/align-right.png</file>
+        <file>images/align-top.png</file>
+        <file>images/brush.png</file>
+        <file>images/color.png</file>
+        <file>images/dashedlinestyle.png</file>
+        <file>images/dottedlinestyle.png</file>
+        <file>images/editaddbox.png</file>
+        <file>images/editaddimage.png</file>
+        <file>images/editaddpolynomial.png</file>
+        <file>images/editaddsmiley.png</file>
+        <file>images/editaddstar.png</file>
+        <file>images/editaddtext.png</file>
+        <file>images/editcleartransforms.png</file>
+        <file>images/editcopy.png</file>
+        <file>images/editcut.png</file>
+        <file>images/editpaste.png</file>
+        <file>images/editselecteditem.png</file>
+        <file>images/fileexport.png</file>
+        <file>images/filenew.png</file>
+        <file>images/fileopen.png</file>
+        <file>images/fileprint.png</file>
+        <file>images/filequit.png</file>
+        <file>images/filesave.png</file>
+        <file>images/icon.png</file>
+        <file>images/pen.png</file>
+        <file>images/showgrid.png</file>
+        <file>images/smileyneutral.png</file>
+        <file>images/smileysad.png</file>
+        <file>images/smileysmile.png</file>
+        <file>images/solidlinestyle.png</file>
+        <file>images/zoom-in.png</file>
+        <file>images/zoom-out.png</file>
+    </qresource>
+</RCC>

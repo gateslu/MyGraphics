@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT       += core gui
+QT       += core gui svg
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -19,7 +19,10 @@ SOURCES += main.cpp\
     item/iRect.cpp \
     item/iEllipse.cpp \
     item/iText.cpp \
-    GluGraphicsView.cpp
+    GluGraphicsView.cpp \
+    aqp/kuhn_munkres.cpp \
+    aqp/aqp.cpp \
+    aqp/alt_key.cpp
 
 HEADERS  += mygraphics.h \
     mygraphicsscene.h \
@@ -28,6 +31,17 @@ HEADERS  += mygraphics.h \
     item/iEllipse.h \
     item/MyItem.h \
     item/iText.h \
-    GluGraphicsView.h
+    GluGraphicsView.h \
+    aqp/kuhn_munkres.hpp \
+    aqp/aqp.hpp \
+    aqp/alt_key.hpp
 
 FORMS    += mygraphics.ui
+
+RESOURCES += \
+    qrc.qrc \
+    aqp/aqp.qrc
+
+OTHER_FILES += \
+    aqp/mime.types \
+    aqp/aqp.pro

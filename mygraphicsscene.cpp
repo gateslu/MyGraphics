@@ -22,7 +22,7 @@ void MyGraphicsScene::mousePressEvent(QGraphicsSceneMouseEvent *event)
         return;
     QGraphicsScene::mousePressEvent(event);
     //    QPoint p = inverseWorldMatrix().map(event->pos());
-    QPointF p = event->scenePos();
+//    QPointF p = event->scenePos();
     QList<QGraphicsItem*> l = this->selectedItems();
     moving = 0;
     //    qDebug() << l.size();
@@ -30,15 +30,18 @@ void MyGraphicsScene::mousePressEvent(QGraphicsSceneMouseEvent *event)
     {
         moving = l.first();
     }
-    moving_start = p;
-    qDebug() << p;
+//    moving_start = p;
+//    qDebug() << p;
     emit itemClicked(moving);
 }
 
 void MyGraphicsScene::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 {
     if (moving) {
-        this->update();
+//        QPointF p = event->scenePos();
+//        moving->moveBy(p.x() - moving_start.x(), p.y() - moving_start.y());
+//        moving_start = p;
+//        this->update();
         emit itemMoved(moving);
     }
     QGraphicsScene::mouseMoveEvent(event);

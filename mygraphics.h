@@ -71,14 +71,42 @@ private slots:
 
     void on_actionPaste_item_triggered();
 
+    void fileExport();
+    void filePrint();
+
+    void editAlign();
+
 private:
     void copyItems(const QList<QGraphicsItem*> &items);
     void selectItems(const QSet<QGraphicsItem*> &items);
+    void createActions();
+    void createMenusAndToolBars();
+    void createConnections();
+    void exportImage(const QString &filename);
+    void exportSvg(const QString &filename);
+    void paintScene(QPainter *painter);
+    void populateMenuAndToolBar(QMenu *menu,
+                                QToolBar *toolBar,
+                                QList<QAction *> actions);
+    void populateCoordinates(const Qt::Alignment &alignment,
+                             QVector<double> *coordinates,
+                             const QList<QGraphicsItem*> &items);
+    void animateAlignment(const QList<QGraphicsItem *> &items,
+                          const QList<QPointF> &positions);
 
 private:
     Ui::MyGraphics *ui;
     GluGraphicsView *view;
     MyGraphicsScene *scene;
+    QPrinter *printer;
+
+    QAction *fileExportAction;
+    QAction *filePrintAction;
+    QAction *editAlignmentAction;
+    QAction *editAlignLeftAction;
+    QAction *editAlignRightAction;
+    QAction *editAlignTopAction;
+    QAction *editAlignBottomAction;
 
     QPointF originP;
     class QtVariantPropertyManager *variantManager;
