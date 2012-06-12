@@ -8,7 +8,15 @@
 #include "GluGraphicsView.h"
 #include "global_types.h"
 #include <QGraphicsItem>
+#include <QShowEvent>
 
+QT_BEGIN_NAMESPACE
+class QAction;
+class QToolBar;
+class QMenu;
+class QUndoStack;
+class QUndoView;
+QT_END_NAMESPACE
 class QtVariantProperty;
 class QtProperty;
 
@@ -23,9 +31,6 @@ class MyGraphics : public QMainWindow
 public:
     explicit MyGraphics(QWidget *parent = 0);
     ~MyGraphics();
-
-    bool fileSave();
-    bool fileSaveAs();
     
     void writeItems(QDataStream &out, const QList<QGraphicsItem *> &itemList);
 
@@ -38,45 +43,43 @@ public:
 
     void addProperty(QtVariantProperty *property, const QString &id);
 
+protected:
+    void showEvent(QShowEvent *event);
+    void closeEvent(QCloseEvent *event);
+
 private slots:
-    void on_toolButton_clicked();
+    void createUndoView();
 
-    void on_actionOpen_triggered();
-
-    void on_actionSave_triggered();
-
-    void on_actionClear_scene_triggered();
-
-    void on_toolButton_2_clicked();
-
-    void on_actionSendtoback_triggered();
-
-    void on_actionBringtofront_triggered();
-
+    void addCustomItem();
     void itemClicked(QGraphicsItem *item);
-
     void itemMoved(QGraphicsItem *item);
-
     void selectionChanged();
-
     void valueChanged(QtProperty *property, const QVariant &value);
 
-    void on_textiTemButton_clicked();
-
-    void on_actionDelete_item_triggered();
-
-    void on_actionCopy_item_triggered();
-
-    void on_actionCut_item_triggered();
-
-    void on_actionPaste_item_triggered();
-
+    void fileNew();
+    void fileOpen();
+    bool fileSave();
+    bool fileSaveAs();
     void fileExport();
     void filePrint();
-
+    void editCopy();
+    void editCut();
+    void editPaste();
+    void editDelete();
+    void editCleanScreen();
     void editAlign();
+    void editBringToFront();
+    void editSendToBack();
+    void viewZoomIn();
+    void viewZoomOut();
+    void viewRestore();
+
+    void openRecentFile();
 
 private:
+    void readSettings();
+    void writeSettings();
+    bool okToClearData();
     void copyItems(const QList<QGraphicsItem*> &items);
     void selectItems(const QSet<QGraphicsItem*> &items);
     void createActions();
@@ -94,19 +97,47 @@ private:
     void animateAlignment(const QList<QGraphicsItem *> &items,
                           const QList<QPointF> &positions);
 
+    void setCurrentFile(const QString &fileName);
+    void updateRecentFileActions();
+    QString strippedName(const QString &fullFileName);
+
 private:
     Ui::MyGraphics *ui;
     GluGraphicsView *view;
     MyGraphicsScene *scene;
     QPrinter *printer;
 
+    QAction *fileNewAction;
+    QAction *fileOpenAction;
+    QAction *fileSaveAction;
+    QAction *fileSaveAsAction;
     QAction *fileExportAction;
     QAction *filePrintAction;
+    QAction *fileQuitAction;
+    QAction *editUndoAction;
+    QAction *editRedoAction;
+    QAction *editCopyAction;
+    QAction *editCutAction;
+    QAction *editPasteAction;
+    QAction *editDeleteAction;
+    QAction *editCleanScreenAction;
     QAction *editAlignmentAction;
     QAction *editAlignLeftAction;
     QAction *editAlignRightAction;
     QAction *editAlignTopAction;
     QAction *editAlignBottomAction;
+    QAction *editBringToFrontAction;
+    QAction *editSendToBackAction;
+    QAction *viewZoomInAction;
+    QAction *viewZoomOutAction;
+    QAction *viewRestoreAction;
+
+    QStringList recentFiles;
+    QString curFile;
+
+    enum { MaxRecentFiles = 5 };
+    QAction *recentFileActions[MaxRecentFiles];
+    QAction *separatorAction;
 
     QPointF originP;
     class QtVariantPropertyManager *variantManager;
@@ -115,6 +146,9 @@ private:
     QMap<QtProperty *, QString> propertyToId;
     QMap<QString, QtVariantProperty *> idToProperty;
     QMap<QString, bool> idToExpanded;
+
+    QUndoStack *undoStack;
+    QUndoView *undoView;
 
     int pasteOffset;
 };

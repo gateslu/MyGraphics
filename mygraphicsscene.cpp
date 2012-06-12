@@ -2,7 +2,7 @@
 #include <QDebug>
 
 MyGraphicsScene::MyGraphicsScene(QObject *parent)
-    : QGraphicsScene(parent)
+    : QGraphicsScene(parent), isPressing(false)
 {
 }
 
@@ -21,23 +21,19 @@ void MyGraphicsScene::mousePressEvent(QGraphicsSceneMouseEvent *event)
     if (event->button() != Qt::LeftButton)
         return;
     QGraphicsScene::mousePressEvent(event);
-    //    QPoint p = inverseWorldMatrix().map(event->pos());
-//    QPointF p = event->scenePos();
+    isPressing = true;
     QList<QGraphicsItem*> l = this->selectedItems();
     moving = 0;
-    //    qDebug() << l.size();
     if (!l.isEmpty())
     {
         moving = l.first();
     }
-//    moving_start = p;
-//    qDebug() << p;
     emit itemClicked(moving);
 }
 
 void MyGraphicsScene::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 {
-    if (moving) {
+    if (moving && isPressing) {
 //        QPointF p = event->scenePos();
 //        moving->moveBy(p.x() - moving_start.x(), p.y() - moving_start.y());
 //        moving_start = p;
@@ -49,6 +45,7 @@ void MyGraphicsScene::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 
 void MyGraphicsScene::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 {
+    isPressing = false;
     QGraphicsScene::mouseReleaseEvent(event);
 }
 

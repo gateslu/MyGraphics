@@ -5,6 +5,9 @@
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
+    a.setApplicationName("MyGraphics");
+    a.setOrganizationName("Fish");
+
     QTextCodec *codec = QTextCodec::codecForName("GB2312");
     QTextCodec::setCodecForTr(codec);
     QTextCodec::setCodecForCStrings(codec);
@@ -26,7 +29,7 @@ int main(int argc, char *argv[])
     w.show();
 
     //应用样式
-    QApplication::setStyle(QStyleFactory::create("Cleanlooks"));       //Plastique/Cleanlooks/windows/CDE
+//    QApplication::setStyle(QStyleFactory::create("Cleanlooks"));       //Plastique/Cleanlooks/windows/CDE
     
     return a.exec();
 }

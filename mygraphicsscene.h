@@ -28,6 +28,7 @@ protected:
 private:
     QGraphicsItem *moving;
     QPointF moving_start;
+    bool isPressing;
 };
 
 #endif // MYGRAPHICSSCENE_H

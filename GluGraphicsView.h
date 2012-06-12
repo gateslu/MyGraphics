@@ -12,9 +12,10 @@ class GluGraphicsView : public QGraphicsView
 public:
     explicit GluGraphicsView(QWidget *parent = 0);
 
-public slots:
-    void zoomIn() { scaleBy(1.1); }
-    void zoomOut() { scaleBy(1.0 / 1.1); }
+public:
+    void zoomIn();
+    void zoomOut();
+    void restore();
 
 protected:
     void wheelEvent(QWheelEvent *event);

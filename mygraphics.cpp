@@ -51,6 +51,12 @@ MyGraphics::MyGraphics(QWidget *parent) :
 {
     ui->setupUi(this);
 
+    undoStack = new QUndoStack(this);
+
+    connect(ui->iRectB, SIGNAL(clicked()), this, SLOT(addCustomItem()));
+    connect(ui->iEllipseB, SIGNAL(clicked()), this, SLOT(addCustomItem()));
+    connect(ui->iTextB, SIGNAL(clicked()), this, SLOT(addCustomItem()));
+
     printer = new QPrinter(QPrinter::HighResolution);
 
     createActions();
@@ -68,8 +74,6 @@ MyGraphics::MyGraphics(QWidget *parent) :
 
     view = new GluGraphicsView();
     view->setScene(scene);
-    view->setDragMode(QGraphicsView::RubberBandDrag);     //可多选
-    view->setBackgroundBrush(QBrush(Qt::white));
     setCentralWidget(view);
 
     currentItem = 0;
@@ -89,23 +93,124 @@ MyGraphics::MyGraphics(QWidget *parent) :
     propertyEditor->setFactoryForManager(variantManager, variantFactory);
     dock->setWidget(propertyEditor);
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+
+    readSettings();
 }
 
 MyGraphics::~MyGraphics()
 {
-    delete printer;
-    delete ui;
+//    delete printer;
+//    delete ui;
+}
+
+//操作历史
+void MyGraphics::createUndoView()
+{
+    undoView = new QUndoView(undoStack);
+    undoView->setWindowTitle(tr("Command List"));
+    undoView->show();
+    undoView->setAttribute(Qt::WA_QuitOnClose, false);
+}
+
+void MyGraphics::showEvent(QShowEvent *event)
+{
+    QMainWindow::showEvent(event);
+//    QSettings settings;
+//    QString filename = settings.value(MostRecentFile).toString();
+    //    if (filename.isEmpty() || filename == tr("Unnamed"))
+    QTimer::singleShot(0, this, SLOT(fileNew()));
+    //    else {
+    //        setWindowFilePath(filename);
+    //        QTimer::singleShot(0, this, SLOT(loadFile()));
+    //    }
+}
+
+void MyGraphics::closeEvent(QCloseEvent *event)
+{
+    if (okToClearData()) {
+        writeSettings();
+        delete printer;
+        delete ui;
+        event->accept();
+    }
+    else
+        event->ignore();
+}
+
+//新建文件
+void MyGraphics::fileNew()
+{
+    if (!okToClearData())
+        return;
+    clear();
+    this->setWindowFilePath(tr("Unnamed"));
+    setDirty(false);
+    qDebug() << "3";
+}
+
+//打开文件
+void MyGraphics::fileOpen()
+{
+    if (!okToClearData())
+        return;
+    const QString &filename = QFileDialog::getOpenFileName(this,
+                                                           tr("%1 - Open").arg(QApplication::applicationName()),
+                                                           ".", tr("Glu Graphics (*.gg);;All file(*)(*.*)"));
+    if (filename.isEmpty())
+        return;
+    setWindowFilePath(filename);
+    loadFile();
+}
+
+//添加item
+void MyGraphics::addCustomItem()
+{
+    QToolButton *itemButton = qobject_cast<QToolButton *>(sender());
+
+    QString itemType = itemButton->objectName();
+
+    QGraphicsItem *item = 0;
+    if (itemType == "iRectB")
+    {
+        item = new iRect;
+    }
+    else if (itemType == "iEllipseB")
+    {
+        item = new iEllipse;
+    }
+    else if (itemType == "iTextB")
+    {
+        item = new iText;
+    }
+
+    if (item == 0)
+    {
+        delete item;
+        return;
+    }
+    scene->addItem(item);
+    scene->selectedItem(item);
+    setDirty(true);
+}
+
+
+bool MyGraphics::okToClearData()
+{
+    if (isWindowModified())
+        return AQP::okToClearData(&MyGraphics::fileSave, this,
+                                  tr("Unsaved changes"), tr("Save unsaved changes?"));
+    return true;
 }
 
 //输出视图
 void MyGraphics::fileExport()
 {
     QString suffixes = AQP::filenameFilter(tr("Bitmap image"),
-            QImageWriter::supportedImageFormats());
+                                           QImageWriter::supportedImageFormats());
     suffixes += tr(";;Vector image (*.svg)");
     const QString filename = QFileDialog::getSaveFileName(this,
-            tr("%1 - Export").arg(QApplication::applicationName()),
-            ".", suffixes);
+                                                          tr("%1 - Export").arg(QApplication::applicationName()),
+                                                          ".", suffixes);
     if (filename.isEmpty())
         return;
     if (filename.toLower().endsWith(".svg"))
@@ -117,16 +222,16 @@ void MyGraphics::fileExport()
 //输出scene的内容
 void MyGraphics::paintScene(QPainter *painter)
 {
-//    bool showGrid = viewShowGridAction->isChecked();
-//    if (showGrid)
-//        viewShowGrid(false);
+    //    bool showGrid = viewShowGridAction->isChecked();
+    //    if (showGrid)
+    //        viewShowGrid(false);
     QList<QGraphicsItem*> items = scene->selectedItems();
     scene->clearSelection();
 
     scene->render(painter);
 
-//    if (showGrid)
-//        viewShowGrid(true);
+    //    if (showGrid)
+    //        viewShowGrid(true);
     foreach (QGraphicsItem *item, items)
         item->setSelected(true);
     selectionChanged();
@@ -162,7 +267,7 @@ void MyGraphics::exportImage(const QString &filename)
                                  2000);
     else
         AQP::warning(this, tr("Error"), tr("Failed to export: %1")
-                                        .arg(filename));
+                     .arg(filename));
 }
 
 //打印
@@ -175,17 +280,128 @@ void MyGraphics::filePrint()
             paintScene(&painter);
         }
         statusBar()->showMessage(tr("Printed %1")
-                .arg(windowFilePath()), 2000);
+                                 .arg(windowFilePath()), 2000);
     }
+}
+
+//复制
+void MyGraphics::editCopy()
+{
+    QList<QGraphicsItem*> items = scene->selectedItems();
+    if (items.isEmpty())
+        return;
+    pasteOffset = OffsetIncrement;
+    copyItems(items);
+}
+
+//剪切
+void MyGraphics::editCut()
+{
+    QList<QGraphicsItem*> items = scene->selectedItems();
+    if (items.isEmpty())
+        return;
+    copyItems(items);
+    QListIterator<QGraphicsItem*> i(items);
+    while (i.hasNext()) {
+#if QT_VERSION >= 0x040600
+        QScopedPointer<QGraphicsItem> item(i.next());
+        scene->removeItem(item.data());
+#else
+        QGraphicsItem *item = i.next();
+        scene->removeItem(item);
+        delete item;
+#endif
+    }
+    setDirty(true);
+}
+
+
+//复制item实现
+void MyGraphics::copyItems(const QList<QGraphicsItem*> &items)
+{
+    QByteArray copiedItems;
+    QDataStream out(&copiedItems, QIODevice::WriteOnly);
+    writeItems(out, items);
+    QMimeData *mimeData = new QMimeData;
+    mimeData->setData(MimeType, copiedItems);
+    QClipboard *clipboard = QApplication::clipboard();
+    clipboard->setMimeData(mimeData);
+}
+
+//粘贴
+void MyGraphics::editPaste()
+{
+    QClipboard *clipboard = QApplication::clipboard();
+    const QMimeData *mimeData = clipboard->mimeData();
+    if (!mimeData)
+        return;
+
+    if (mimeData->hasFormat(MimeType)) {
+        QByteArray copiedItems = mimeData->data(MimeType);
+        QDataStream in(&copiedItems, QIODevice::ReadOnly);
+        readItems(in, pasteOffset, true);
+        pasteOffset += OffsetIncrement;
+    }
+    else
+        return;
+    setDirty(true);
 }
 
 //创建Action
 void MyGraphics::createActions()
 {
+    fileNewAction = new QAction(QIcon(":images/filenew.png"),
+                                tr("New..."), this);
+    fileNewAction->setShortcuts(QKeySequence::New);
+    fileOpenAction = new QAction(QIcon(":images/fileopen.png"),
+                                 tr("Open..."), this);
+    fileOpenAction->setShortcuts(QKeySequence::Open);
+    fileSaveAction = new QAction(QIcon(":images/filesave.png"),
+                                 tr("Save"), this);
+    fileSaveAction->setShortcuts(QKeySequence::Save);
+    fileSaveAsAction = new QAction(QIcon(":images/filesave.png"),
+                                   tr("Save As..."), this);
+    fileSaveAsAction->setShortcuts(QKeySequence::SaveAs);
     fileExportAction = new QAction(QIcon(":images/fileexport.png"),
-            tr("Export..."), this);
+                                   tr("Export..."), this);
     filePrintAction = new QAction(QIcon(":images/fileprint.png"),
-            tr("Print..."), this);
+                                  tr("Print..."), this);
+
+    for (int i = 0; i < MaxRecentFiles; ++i) {
+        recentFileActions[i] = new QAction(this);
+        recentFileActions[i]->setVisible(false);
+        connect(recentFileActions[i], SIGNAL(triggered()),
+                this, SLOT(openRecentFile()));
+    }
+
+    fileQuitAction = new QAction(QIcon(":images/filequit.png"),
+                                 tr("Quit"), this);
+    fileQuitAction->setShortcuts(QKeySequence::Quit);
+
+    editUndoAction = undoStack->createUndoAction(this, tr("&Undo"));
+    editUndoAction->setIcon(QIcon(":images/undo.png"));
+    editUndoAction->setShortcuts(QKeySequence::Undo);
+
+    editRedoAction = undoStack->createRedoAction(this, tr("&Redo"));
+    editRedoAction->setIcon(QIcon(":images/redo.png"));
+    editRedoAction->setShortcuts(QKeySequence::Redo);
+
+    editCopyAction = new QAction(QIcon(":images/editcopy.png"), tr("&Copy"),
+                                 this);
+    editCopyAction->setShortcuts(QKeySequence::Copy);
+    editCutAction = new QAction(QIcon(":images/editcut.png"), tr("Cu&t"),
+                                this);
+    editCutAction->setShortcuts(QList<QKeySequence>()
+                                << QKeySequence::Cut << Qt::Key_Delete);
+    editPasteAction = new QAction(QIcon(":images/editpaste.png"),
+                                  tr("&Paste"), this);
+    editPasteAction->setShortcuts(QKeySequence::Paste);
+
+    editDeleteAction = new QAction(QIcon(":images/editdelete.png"),
+                                   tr("&Delete"), this);
+    editDeleteAction->setShortcuts(QKeySequence::Delete);
+    editCleanScreenAction  = new QAction(QIcon(":images/editclean.png"),
+                                         tr("CleanScreen"), this);
 
     editAlignmentAction = new QAction(QIcon(":images/align-left.png"),
                                       tr("Alignment"), this);
@@ -193,15 +409,29 @@ void MyGraphics::createActions()
     editAlignLeftAction = new QAction(QIcon(":images/align-left.png"),
                                       tr("Left"), this);
     editAlignLeftAction->setData(Qt::AlignLeft);
-    editAlignRightAction = new QAction(QIcon(":images//align-right.png"),
+    editAlignRightAction = new QAction(QIcon(":images/align-right.png"),
                                        tr("Right"), this);
     editAlignRightAction->setData(Qt::AlignRight);
-    editAlignTopAction = new QAction(QIcon(":images//align-top.png"),
+    editAlignTopAction = new QAction(QIcon(":images/align-top.png"),
                                      tr("Top"), this);
     editAlignTopAction->setData(Qt::AlignTop);
-    editAlignBottomAction = new QAction(QIcon(":images//align-bottom.png"),
+    editAlignBottomAction = new QAction(QIcon(":images/align-bottom.png"),
                                         tr("Bottom"), this);
     editAlignBottomAction->setData(Qt::AlignBottom);
+
+    editBringToFrontAction = new QAction(QIcon(":images/bringtofront.png"),
+                                         tr("BringToFront"), this);
+    editSendToBackAction = new QAction(QIcon(":images/sendtoback.png"),
+                                       tr("SentToBack"), this);
+
+    viewZoomInAction = new QAction(QIcon(":images/zoom_in.png"),
+                                   tr("Zoom In"), this);
+    viewZoomInAction->setShortcut(tr("+"));
+    viewZoomOutAction = new QAction(QIcon(":images/zoom_out.png"),
+                                    tr("Zoom Out"), this);
+    viewZoomOutAction->setShortcut(tr("-"));
+    viewRestoreAction = new QAction(QIcon(":images/restore.png"),
+                                    tr("View Restore"), this);
 }
 
 //创建menu和toolbar
@@ -213,34 +443,85 @@ void MyGraphics::createMenusAndToolBars()
     QMenu *fileMenu = menuBar()->addMenu(tr("File"));
     QToolBar *fileToolBar = addToolBar(tr("File"));
     populateMenuAndToolBar(fileMenu, fileToolBar, QList<QAction*>()
-            << fileExportAction << separator << filePrintAction);
+                           << fileNewAction << fileOpenAction << fileSaveAction
+                           << fileExportAction << separator << filePrintAction);
+    fileMenu->insertAction(fileExportAction, fileSaveAsAction);
+    fileMenu->addSeparator();
+    separatorAction = fileMenu->addSeparator();
+    for (int i = 0; i < MaxRecentFiles; ++i)
+        fileMenu->addAction(recentFileActions[i]);
+    separatorAction = fileMenu->addSeparator();
+    fileMenu->addAction(fileQuitAction);
 
     QMenu *alignmentMenu = new QMenu(tr("Align"), this);
     foreach (QAction *action, QList<QAction*>()
-            << editAlignLeftAction << editAlignRightAction
-            << editAlignTopAction << editAlignBottomAction)
+             << editAlignLeftAction << editAlignRightAction
+             << editAlignTopAction << editAlignBottomAction)
         alignmentMenu->addAction(action);
     editAlignmentAction->setMenu(alignmentMenu);
 
     QMenu *editMenu = menuBar()->addMenu(tr("Edit"));
     QToolBar *editToolBar = addToolBar(tr("Edit"));
     populateMenuAndToolBar(editMenu, editToolBar, QList<QAction*>()
-                           << editAlignmentAction);
+                           << editUndoAction << editRedoAction << separator
+                           << editCopyAction << editCutAction << editPasteAction
+                           << separator << editDeleteAction << editCleanScreenAction << separator
+                           << editAlignmentAction << editBringToFrontAction << editSendToBackAction);
+
+    QMenu *viewMenu = menuBar()->addMenu(tr("View"));
+    QToolBar *viewToolBar = addToolBar(tr("View"));
+    populateMenuAndToolBar(viewMenu, viewToolBar, QList<QAction*>()
+                           << viewZoomInAction << viewZoomOutAction << viewRestoreAction);
+
+    AQP::accelerateMenu(menuBar());
 }
 
 //创建连接
 void MyGraphics::createConnections()
 {
+    connect(fileNewAction, SIGNAL(triggered()),
+            this, SLOT(fileNew()));
+    connect(fileOpenAction, SIGNAL(triggered()),
+            this, SLOT(fileOpen()));
+    connect(fileSaveAction, SIGNAL(triggered()),
+            this, SLOT(fileSave()));
+    connect(fileSaveAsAction, SIGNAL(triggered()),
+            this, SLOT(fileSaveAs()));
     connect(fileExportAction, SIGNAL(triggered()),
             this, SLOT(fileExport()));
     connect(filePrintAction, SIGNAL(triggered()),
             this, SLOT(filePrint()));
+    connect(fileQuitAction, SIGNAL(triggered()),
+            this, SLOT(close()));
+
+    connect(editCopyAction, SIGNAL(triggered()),
+            this, SLOT(editCopy()));
+    connect(editCutAction, SIGNAL(triggered()),
+            this, SLOT(editCut()));
+    connect(editPasteAction, SIGNAL(triggered()),
+            this, SLOT(editPaste()));
+    connect(editDeleteAction, SIGNAL(triggered()),
+            this, SLOT(editDelete()));
+    connect(editCleanScreenAction, SIGNAL(triggered()),
+            this, SLOT(editCleanScreen()));
 
     foreach (QAction *action, QList<QAction*>()
-            << editAlignmentAction << editAlignLeftAction
-            << editAlignRightAction << editAlignTopAction
-            << editAlignBottomAction)
+             << editAlignmentAction << editAlignLeftAction
+             << editAlignRightAction << editAlignTopAction
+             << editAlignBottomAction)
         connect(action, SIGNAL(triggered()), this, SLOT(editAlign()));
+    connect(editBringToFrontAction, SIGNAL(triggered()),
+            this, SLOT(editBringToFront()));
+    connect(editSendToBackAction, SIGNAL(triggered()),
+            this, SLOT(editSendToBack()));
+
+    connect(viewZoomInAction, SIGNAL(triggered()),
+            this, SLOT(viewZoomIn()));
+    connect(viewZoomOutAction, SIGNAL(triggered()),
+            this, SLOT(viewZoomOut()));
+    connect(viewRestoreAction, SIGNAL(triggered()),
+            this, SLOT(viewRestore()));
+
 }
 
 void MyGraphics::populateCoordinates(const Qt::Alignment &alignment,
@@ -251,14 +532,14 @@ void MyGraphics::populateCoordinates(const Qt::Alignment &alignment,
     while (i.hasNext()) {
         QRectF rect = i.next()->sceneBoundingRect();
         switch (alignment) {
-            case Qt::AlignLeft:
-                coordinates->append(rect.x()); break;
-            case Qt::AlignRight:
-                coordinates->append(rect.x() + rect.width()); break;
-            case Qt::AlignTop:
-                coordinates->append(rect.y()); break;
-            case Qt::AlignBottom:
-                coordinates->append(rect.y() + rect.height()); break;
+        case Qt::AlignLeft:
+            coordinates->append(rect.x()); break;
+        case Qt::AlignRight:
+            coordinates->append(rect.x() + rect.width()); break;
+        case Qt::AlignTop:
+            coordinates->append(rect.y()); break;
+        case Qt::AlignBottom:
+            coordinates->append(rect.y() + rect.height()); break;
         }
     }
 }
@@ -271,7 +552,7 @@ void MyGraphics::editAlign()
         return;
 
     Qt::Alignment alignment = static_cast<Qt::Alignment>(
-            action->data().toInt());
+                action->data().toInt());
     if (action != editAlignmentAction) {
         editAlignmentAction->setData(action->data());
         editAlignmentAction->setIcon(action->icon());
@@ -302,12 +583,12 @@ void MyGraphics::editAlign()
     }
 
     animateAlignment(items, positions);
-//    setDirty(true);
+    setDirty(true);
 }
 
 //创建populateMenuAndToolBar
 void MyGraphics::populateMenuAndToolBar(QMenu *menu,
-        QToolBar *toolBar, QList<QAction*> actions)
+                                        QToolBar *toolBar, QList<QAction*> actions)
 {
 #ifdef Q_WS_MAC
     toolBar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
@@ -338,7 +619,7 @@ void MyGraphics::animateAlignment(const QList<QGraphicsItem*> &items,
         if (!object)
             continue;
         QPropertyAnimation *animation = new QPropertyAnimation(
-                object, "pos", this);
+                    object, "pos", this);
         animation->setDuration(duration);
         animation->setEasingCurve(QEasingCurve::InOutBack);
 #ifdef ANIMATE_IN_PARALLEL
@@ -356,31 +637,79 @@ void MyGraphics::animateAlignment(const QList<QGraphicsItem*> &items,
 #endif
 }
 
-//矩形item
-void MyGraphics::on_toolButton_clicked()
+void MyGraphics::setCurrentFile(const QString &fileName)
 {
-    iRect *rect = new iRect;
-//    rect->setRect(0,0,110,110);
-//    rect->setBrush(QBrush(QColor(Qt::blue)));
-    scene->addItem(rect);
-//    rect->setPos(originP);
-    scene->selectedItem(rect);
-//    rect->setZValue(0.0);
-    qDebug() << rect->zValue();
+    curFile = fileName;
+    //    setWindowModified(false);
+
+    QString shownName = tr("Unnamed");
+    if (!curFile.isEmpty()) {
+        shownName = strippedName(curFile);
+        recentFiles.removeAll(curFile);
+        recentFiles.prepend(curFile);
+        updateRecentFileActions();
+    }
 }
 
-//椭圆item
-void MyGraphics::on_toolButton_2_clicked()
+//更新recentfile列
+void MyGraphics::updateRecentFileActions()
 {
-    iEllipse *ellipse = new iEllipse;
-    ellipse->setRect(0,0,100,100);
-    ellipse->setBrush(QBrush(QColor(Qt::darkGreen)));
-    //    ellipse->setOpacity(0.7);
-    scene->addItem(ellipse);
-    ellipse->setPos(originP);
-    scene->selectedItem(ellipse);
-    ellipse->setZValue(0.0);
-    qDebug() << ellipse->zValue();
+    QMutableStringListIterator i(recentFiles);
+    while (i.hasNext()) {
+        if (!QFile::exists(i.next()))
+            i.remove();
+    }
+
+    for (int j = 0; j < MaxRecentFiles; ++j) {
+        if (j < recentFiles.count()) {
+            QString text = tr("&%1 %2")
+                    .arg(j + 1)
+                    .arg(strippedName(recentFiles[j]));
+            recentFileActions[j]->setText(text);
+            recentFileActions[j]->setData(recentFiles[j]);
+            recentFileActions[j]->setVisible(true);
+        } else {
+            recentFileActions[j]->setVisible(false);
+        }
+    }
+    separatorAction->setVisible(!recentFiles.isEmpty());
+}
+
+QString MyGraphics::strippedName(const QString &fullFileName)
+{
+    return QFileInfo(fullFileName).fileName();
+}
+
+//打开最近打开的文件
+void MyGraphics::openRecentFile()
+{
+    if (!okToClearData())
+        return;
+
+    QAction *action = qobject_cast<QAction *>(sender());
+    if (action)
+    {
+        setWindowFilePath(action->data().toString());
+        loadFile();
+    }
+
+}
+
+//读取设置
+void MyGraphics::readSettings()
+{
+    QSettings settings("Fish.", "Glu Graphics");
+
+    recentFiles = settings.value("recentFiles").toStringList();
+    updateRecentFileActions();
+}
+
+//保存设置
+void MyGraphics::writeSettings()
+{
+    QSettings settings("Fish.", "Glu Graphics");
+
+    settings.setValue("recentFiles", recentFiles);
 }
 
 //更新窗口修改标志*
@@ -392,20 +721,9 @@ void MyGraphics::setDirty(bool on)
 //保存
 bool MyGraphics::fileSave()
 {
-    //    const QString filename = windowFilePath();
-    //    if (filename.isEmpty() || filename == tr("Unnamed"))
-    //        return fileSaveAs();
-
-    QString filenameas = QFileDialog::getSaveFileName(this,
-                                                      tr("%1 - Save As").arg(QApplication::applicationName()),
-                                                      "test.pd", tr("Page Designer (*.pd)"));
-    if (filenameas.isEmpty())
-        return false;
-    if (!filenameas.toLower().endsWith(".pd"))
-        filenameas += ".pd";
-    setWindowFilePath(filenameas);
-
     const QString filename = windowFilePath();
+    if (filename.isEmpty() || filename == tr("Unnamed"))
+        return fileSaveAs();
     QFile file(filename);
     if (!file.open(QIODevice::WriteOnly))
         return false;
@@ -413,7 +731,8 @@ bool MyGraphics::fileSave()
     out.setVersion(QDataStream::Qt_4_5);
     writeItems(out, scene->items());
     file.close();
-    //    setDirty(false);
+    setDirty(false);
+    setCurrentFile(filename);
     return true;
 }
 
@@ -422,11 +741,11 @@ bool MyGraphics::fileSaveAs()
 {
     QString filename = QFileDialog::getSaveFileName(this,
                                                     tr("%1 - Save As").arg(QApplication::applicationName()),
-                                                    ".", tr("Page Designer (*.pd)"));
+                                                    ".", tr("Glu Graphics (*.gg)"));
     if (filename.isEmpty())
         return false;
-    if (!filename.toLower().endsWith(".pd"))
-        filename += ".pd";
+    if (!filename.toLower().endsWith(".gg"))
+        filename += ".gg";
     setWindowFilePath(filename);
     return fileSave();
 }
@@ -501,24 +820,6 @@ void MyGraphics::writeItems(QDataStream &out,
     }
 }
 
-//打开文件
-void MyGraphics::on_actionOpen_triggered()
-{
-    const QString &filename = QFileDialog::getOpenFileName(this,
-                                                           tr("%1 - Open").arg(QApplication::applicationName()),
-                                                           ".", tr("Page Designer (*.pd)"));
-    if (filename.isEmpty())
-        return;
-    setWindowFilePath(filename);
-    loadFile();
-}
-
-//保存文件
-void MyGraphics::on_actionSave_triggered()
-{
-    fileSave();
-}
-
 //读取文件
 void MyGraphics::loadFile()
 {
@@ -530,7 +831,8 @@ void MyGraphics::loadFile()
     in.setVersion(QDataStream::Qt_4_5);
     clear();
     readItems(in);
-    //    setDirty(false);
+    setDirty(false);
+    setCurrentFile(windowFilePath());
 }
 
 //清空scene
@@ -541,6 +843,7 @@ void MyGraphics::clear()
     //        scene->removeItem(list.at(i));
     //    }
     scene->clear();
+    viewRestore();
 }
 
 //读取文件中的item
@@ -609,50 +912,6 @@ void MyGraphics::readItems(QDataStream &in, int offset, bool select)
         selectItems(items);
     //    else
     //        selectionChanged();
-}
-
-//清空scene
-void MyGraphics::on_actionClear_scene_triggered()
-{
-    clear();
-}
-
-//item移到后方
-void MyGraphics::on_actionSendtoback_triggered()
-{
-    if (scene->selectedItems().isEmpty())
-        return;
-
-    QGraphicsItem *selectedItem = scene->selectedItems().first();
-    QList<QGraphicsItem *> overlapItems = selectedItem->collidingItems();
-
-    qreal zValue = 0;
-    foreach (QGraphicsItem *item, overlapItems)
-    {
-        if (item->zValue() <= zValue)
-            zValue = item->zValue() - 1.0;
-    }
-    selectedItem->setZValue(zValue);
-    itemClicked(selectedItem);
-}
-
-//item移到前方
-void MyGraphics::on_actionBringtofront_triggered()
-{
-    if (scene->selectedItems().isEmpty())
-        return;
-
-    QGraphicsItem *selectedItem = scene->selectedItems().first();
-    QList<QGraphicsItem *> overlapItems = selectedItem->collidingItems();
-
-    qreal zValue = 0;
-    foreach (QGraphicsItem *item, overlapItems)
-    {
-        if (item->zValue() >= zValue)
-            zValue = item->zValue() + 1.0;
-    }
-    selectedItem->setZValue(zValue);
-    itemClicked(selectedItem);
 }
 
 //展开
@@ -738,6 +997,12 @@ void MyGraphics::itemClicked(QGraphicsItem *item)
         property->setValue(i->brush().color());
         addProperty(property, QLatin1String("brush"));
 
+        property = variantManager->addProperty(QVariant::Double, tr("Pen Width"));
+        property->setAttribute(QLatin1String("minimum"), 1.0);
+        property->setAttribute(QLatin1String("maximum"), 10.0);
+        property->setValue(i->pen().widthF());
+        addProperty(property, QLatin1String("pen_width"));
+
         property = variantManager->addProperty(QVariant::Color, tr("Pen Color"));
         property->setValue(i->pen().color());
         addProperty(property, QLatin1String("pen"));
@@ -753,6 +1018,12 @@ void MyGraphics::itemClicked(QGraphicsItem *item)
         property = variantManager->addProperty(QVariant::Color, tr("Brush Color"));
         property->setValue(i->brush().color());
         addProperty(property, QLatin1String("brush"));
+
+        property = variantManager->addProperty(QVariant::Double, tr("Pen Width"));
+        property->setAttribute(QLatin1String("minimum"), 1.0);
+        property->setAttribute(QLatin1String("maximum"), 10.0);
+        property->setValue(i->pen().widthF());
+        addProperty(property, QLatin1String("pen_width"));
 
         property = variantManager->addProperty(QVariant::Color, tr("Pen Color"));
         property->setValue(i->pen().color());
@@ -811,13 +1082,15 @@ void MyGraphics::itemMoved(QGraphicsItem *item)
         return;
 
     disconnect(variantManager, SIGNAL(valueChanged(QtProperty *, const QVariant &)),
-            this, SLOT(valueChanged(QtProperty *, const QVariant &)));
+               this, SLOT(valueChanged(QtProperty *, const QVariant &)));
 
     variantManager->setValue(idToProperty[QLatin1String("xpos")], item->pos().x());
     variantManager->setValue(idToProperty[QLatin1String("ypos")], item->pos().y());
 
     connect(variantManager, SIGNAL(valueChanged(QtProperty *, const QVariant &)),
             this, SLOT(valueChanged(QtProperty *, const QVariant &)));
+    setDirty(true);
+    scene->update();
 }
 
 //修改item属性
@@ -879,6 +1152,23 @@ void MyGraphics::valueChanged(QtProperty *property, const QVariant &value)
             i->setDefaultTextColor(qVariantValue<QColor>(value));
         }
     }
+    else if (id == QLatin1String("pen_width"))
+    {
+        if (currentItem->type() == MG_TYPE_IRECT)
+        {
+            iRect *i = (iRect *)currentItem;
+            QPen p = i->pen();
+            p.setWidthF(value.toDouble());
+            i->setPen(p);
+        }
+        else if(currentItem->type() == MG_TYPE_IELLIPSE)
+        {
+            iEllipse *i = (iEllipse *)currentItem;
+            QPen p = i->pen();
+            p.setWidthF(value.toDouble());
+            i->setPen(p);
+        }
+    }
     else if (id == QLatin1String("pen"))
     {
         if (currentItem->type() == MG_TYPE_IRECT)
@@ -935,23 +1225,86 @@ void MyGraphics::valueChanged(QtProperty *property, const QVariant &value)
             i->setRect(r);
         }
     }
+    setDirty(true);
     scene->update();
 }
 
-//文本item
-void MyGraphics::on_textiTemButton_clicked()
+//重新选中item
+void MyGraphics::selectItems(const QSet<QGraphicsItem *> &items)
 {
-    iText *i = new iText;
-    i->setPlainText("Text");
-    i->setDefaultTextColor(QColor(Qt::blue));
-    i->setFont(QFont("宋体", 14));
-    scene->addItem(i);
-    i->setPos(originP);
-    scene->selectedItem(i);
+    scene->clearSelection();
+    foreach (QGraphicsItem *item, items)
+        item->setSelected(true);
 }
 
-//刪除选择的item
-void MyGraphics::on_actionDelete_item_triggered()
+//清空屏幕
+void MyGraphics::editCleanScreen()
+{
+    //QMessageBox::Yes	0x00004000
+    int ret = QMessageBox::warning(this,
+                                   "Clean Screen",
+                                   "Do you want yo clean all item?",
+                                   QMessageBox::Yes,
+                                   QMessageBox::No);
+    if (ret == 0x00004000)
+        clear();
+}
+
+//item移到前方
+void MyGraphics::editBringToFront()
+{
+    if (scene->selectedItems().isEmpty())
+        return;
+
+    QGraphicsItem *selectedItem = scene->selectedItems().first();
+    QList<QGraphicsItem *> overlapItems = selectedItem->collidingItems();
+
+    qreal zValue = 0;
+    foreach (QGraphicsItem *item, overlapItems)
+    {
+        if (item->zValue() >= zValue)
+            zValue = item->zValue() + 1.0;
+    }
+    selectedItem->setZValue(zValue);
+    itemClicked(selectedItem);
+}
+
+//item移到后方
+void MyGraphics::editSendToBack()
+{
+    if (scene->selectedItems().isEmpty())
+        return;
+
+    QGraphicsItem *selectedItem = scene->selectedItems().first();
+    QList<QGraphicsItem *> overlapItems = selectedItem->collidingItems();
+
+    qreal zValue = 0;
+    foreach (QGraphicsItem *item, overlapItems)
+    {
+        if (item->zValue() <= zValue)
+            zValue = item->zValue() - 1.0;
+    }
+    selectedItem->setZValue(zValue);
+    itemClicked(selectedItem);
+}
+
+void MyGraphics::viewZoomIn()
+{
+    view->zoomIn();
+}
+
+void MyGraphics::viewZoomOut()
+{
+    view->zoomOut();
+}
+
+void MyGraphics::viewRestore()
+{
+    view->restore();
+}
+
+//删除选中的item
+void MyGraphics::editDelete()
 {
     QList<QGraphicsItem*> items = scene->selectedItems();
     if (items.isEmpty())
@@ -968,75 +1321,5 @@ void MyGraphics::on_actionDelete_item_triggered()
 #endif
     }
     itemClicked(0);
-    //    setDirty(true);             //窗口标题增加*,用来标记文件已被修改
-}
-
-//复制item实现
-void MyGraphics::copyItems(const QList<QGraphicsItem*> &items)
-{
-    QByteArray copiedItems;
-    QDataStream out(&copiedItems, QIODevice::WriteOnly);
-    writeItems(out, items);
-    QMimeData *mimeData = new QMimeData;
-    mimeData->setData(MimeType, copiedItems);
-    QClipboard *clipboard = QApplication::clipboard();
-    clipboard->setMimeData(mimeData);
-}
-
-//选取item
-void MyGraphics::selectItems(const QSet<QGraphicsItem *> &items)
-{
-    scene->clearSelection();
-    foreach (QGraphicsItem *item, items)
-        item->setSelected(true);
-}
-
-//复制
-void MyGraphics::on_actionCopy_item_triggered()
-{
-    QList<QGraphicsItem*> items = scene->selectedItems();
-    if (items.isEmpty())
-        return;
-    pasteOffset = OffsetIncrement;
-    copyItems(items);
-}
-
-//剪切
-void MyGraphics::on_actionCut_item_triggered()
-{
-    QList<QGraphicsItem*> items = scene->selectedItems();
-    if (items.isEmpty())
-        return;
-    copyItems(items);
-    QListIterator<QGraphicsItem*> i(items);
-    while (i.hasNext()) {
-#if QT_VERSION >= 0x040600
-        QScopedPointer<QGraphicsItem> item(i.next());
-        scene->removeItem(item.data());
-#else
-        QGraphicsItem *item = i.next();
-        scene->removeItem(item);
-        delete item;
-#endif
-    }
-    //    setDirty(true);
-}
-
-//粘贴
-void MyGraphics::on_actionPaste_item_triggered()
-{
-    QClipboard *clipboard = QApplication::clipboard();
-    const QMimeData *mimeData = clipboard->mimeData();
-    if (!mimeData)
-        return;
-
-    if (mimeData->hasFormat(MimeType)) {
-        QByteArray copiedItems = mimeData->data(MimeType);
-        QDataStream in(&copiedItems, QIODevice::ReadOnly);
-        readItems(in, pasteOffset, true);
-        pasteOffset += OffsetIncrement;
-    }
-    else
-        return;
-    //    setDirty(true);
+    setDirty(true);             //窗口标题增加*,用来标记文件已被修改
 }

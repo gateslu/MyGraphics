@@ -5,6 +5,11 @@ iText::iText()
     setFlag(QGraphicsItem::ItemIsMovable, true);
     setFlag(QGraphicsItem::ItemIsSelectable, true);
     setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
+
+    setPlainText("Text");
+    setDefaultTextColor(QColor(Qt::blue));
+    setFont(QFont("ËÎÌו", 14));
+    setPos(QPointF(400,400));
 }
 
 QDataStream &operator<<(QDataStream &stream, iText *pItem)

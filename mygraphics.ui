@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>622</width>
+    <width>688</width>
     <height>407</height>
    </rect>
   </property>
@@ -17,58 +17,9 @@
    <bool>false</bool>
   </property>
   <property name="windowTitle">
-   <string>MyGraphics</string>
+   <string/>
   </property>
   <widget class="QWidget" name="centralWidget"/>
-  <widget class="QMenuBar" name="menuBar">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>622</width>
-     <height>23</height>
-    </rect>
-   </property>
-   <widget class="QMenu" name="menu">
-    <property name="title">
-     <string>文件</string>
-    </property>
-    <addaction name="actionOpen"/>
-    <addaction name="actionSave"/>
-   </widget>
-   <widget class="QMenu" name="menu_2">
-    <property name="title">
-     <string>操作</string>
-    </property>
-    <addaction name="actionClear_scene"/>
-    <addaction name="actionDelete_item"/>
-    <addaction name="actionCopy_item"/>
-    <addaction name="actionCut_item"/>
-    <addaction name="actionPaste_item"/>
-   </widget>
-   <addaction name="menu"/>
-   <addaction name="menu_2"/>
-  </widget>
-  <widget class="QToolBar" name="mainToolBar">
-   <property name="windowTitle">
-    <string>主菜单</string>
-   </property>
-   <attribute name="toolBarArea">
-    <enum>TopToolBarArea</enum>
-   </attribute>
-   <attribute name="toolBarBreak">
-    <bool>false</bool>
-   </attribute>
-   <addaction name="actionOpen"/>
-   <addaction name="actionSave"/>
-   <addaction name="actionCopy_item"/>
-   <addaction name="actionCut_item"/>
-   <addaction name="actionPaste_item"/>
-   <addaction name="actionClear_scene"/>
-   <addaction name="actionDelete_item"/>
-   <addaction name="actionBringtofront"/>
-   <addaction name="actionSendtoback"/>
-  </widget>
   <widget class="QStatusBar" name="statusBar"/>
   <widget class="QDockWidget" name="dockWidget">
    <property name="minimumSize">
@@ -111,7 +62,7 @@
           <x>0</x>
           <y>0</y>
           <width>80</width>
-          <height>266</height>
+          <height>288</height>
          </rect>
         </property>
         <attribute name="label">
@@ -132,21 +83,30 @@
           </spacer>
          </item>
          <item row="0" column="0">
-          <widget class="QToolButton" name="toolButton">
+          <widget class="QToolButton" name="iRectB">
+           <property name="accessibleName">
+            <string>iRect</string>
+           </property>
            <property name="text">
             <string>R</string>
            </property>
           </widget>
          </item>
          <item row="0" column="1">
-          <widget class="QToolButton" name="toolButton_2">
+          <widget class="QToolButton" name="iEllipseB">
+           <property name="accessibleName">
+            <string>iEllipse</string>
+           </property>
            <property name="text">
             <string>E</string>
            </property>
           </widget>
          </item>
          <item row="1" column="0">
-          <widget class="QToolButton" name="textiTemButton">
+          <widget class="QToolButton" name="iTextB">
+           <property name="accessibleName">
+            <string>iText</string>
+           </property>
            <property name="text">
             <string>T</string>
            </property>
@@ -160,7 +120,7 @@
           <x>0</x>
           <y>0</y>
           <width>80</width>
-          <height>266</height>
+          <height>288</height>
          </rect>
         </property>
         <attribute name="label">
@@ -172,69 +132,16 @@
     </layout>
    </widget>
   </widget>
-  <action name="actionOpen">
-   <property name="text">
-    <string>打开</string>
+  <widget class="QMenuBar" name="menuBar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>688</width>
+     <height>23</height>
+    </rect>
    </property>
-   <property name="shortcut">
-    <string>Ctrl+O</string>
-   </property>
-  </action>
-  <action name="actionSave">
-   <property name="text">
-    <string>保存</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+S</string>
-   </property>
-  </action>
-  <action name="actionClear_scene">
-   <property name="text">
-    <string>clear scene</string>
-   </property>
-  </action>
-  <action name="actionSendtoback">
-   <property name="text">
-    <string>Sendtoback</string>
-   </property>
-  </action>
-  <action name="actionBringtofront">
-   <property name="text">
-    <string>Bringtofront</string>
-   </property>
-  </action>
-  <action name="actionDelete_item">
-   <property name="text">
-    <string>delete item</string>
-   </property>
-   <property name="shortcut">
-    <string>Del</string>
-   </property>
-  </action>
-  <action name="actionCopy_item">
-   <property name="text">
-    <string>copy item</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+C</string>
-   </property>
-  </action>
-  <action name="actionCut_item">
-   <property name="text">
-    <string>cut item</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+X</string>
-   </property>
-  </action>
-  <action name="actionPaste_item">
-   <property name="text">
-    <string>paste  item</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+V</string>
-   </property>
-  </action>
+  </widget>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <resources/>
