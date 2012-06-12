@@ -37,6 +37,7 @@
 #include <limits>
 #include <QDebug>
 #include <QSvgGenerator>
+#include "undocommands/commands.h"
 
 const int OffsetIncrement = 5;
 const qint32 MagicNumber = 0x5A93DE5;
@@ -63,13 +64,15 @@ MyGraphics::MyGraphics(QWidget *parent) :
     createMenusAndToolBars();
     createConnections();
 
+    createUndoView();
+
     scene = new MyGraphicsScene(this);
     scene->setSceneRect(QRectF(0, 0, 800, 800));
 
     originP = QPointF(scene->width()/2, scene->height()/2);
 
     connect(scene, SIGNAL(itemClicked(QGraphicsItem*)), this, SLOT(itemClicked(QGraphicsItem*)));
-    connect(scene, SIGNAL(itemMoved(QGraphicsItem*)), this, SLOT(itemMoved(QGraphicsItem*)));
+    connect(scene, SIGNAL(itemMoved(QGraphicsItem*, QPointF)), this, SLOT(itemMoved(QGraphicsItem*, QPointF)));
     connect(scene, SIGNAL(selectionChanged()), this, SLOT(selectionChanged()));
 
     view = new GluGraphicsView();
@@ -1076,7 +1079,7 @@ void MyGraphics::selectionChanged()
 }
 
 //ÒÆ¶¯item
-void MyGraphics::itemMoved(QGraphicsItem *item)
+void MyGraphics::itemMoved(QGraphicsItem *item, const QPointF &oldPosition)
 {
     if (item != currentItem)
         return;
@@ -1091,6 +1094,8 @@ void MyGraphics::itemMoved(QGraphicsItem *item)
             this, SLOT(valueChanged(QtProperty *, const QVariant &)));
     setDirty(true);
     scene->update();
+
+    undoStack->push(new MoveCommand(item, oldPosition));
 }
 
 //ĞŞ¸ÄitemÊôĞÔ

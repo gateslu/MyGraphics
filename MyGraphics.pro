@@ -22,7 +22,8 @@ SOURCES += main.cpp\
     GluGraphicsView.cpp \
     aqp/kuhn_munkres.cpp \
     aqp/aqp.cpp \
-    aqp/alt_key.cpp
+    aqp/alt_key.cpp \
+    undocommands/commands.cpp
 
 HEADERS  += mygraphics.h \
     mygraphicsscene.h \
@@ -34,7 +35,8 @@ HEADERS  += mygraphics.h \
     GluGraphicsView.h \
     aqp/kuhn_munkres.hpp \
     aqp/aqp.hpp \
-    aqp/alt_key.hpp
+    aqp/alt_key.hpp \
+    undocommands/commands.h
 
 FORMS    += mygraphics.ui
 

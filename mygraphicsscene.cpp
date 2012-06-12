@@ -20,6 +20,7 @@ void MyGraphicsScene::mousePressEvent(QGraphicsSceneMouseEvent *event)
 {
     if (event->button() != Qt::LeftButton)
         return;
+
     QGraphicsScene::mousePressEvent(event);
     isPressing = true;
     QList<QGraphicsItem*> l = this->selectedItems();
@@ -27,6 +28,7 @@ void MyGraphicsScene::mousePressEvent(QGraphicsSceneMouseEvent *event)
     if (!l.isEmpty())
     {
         moving = l.first();
+        oldPos = moving->pos();
     }
     emit itemClicked(moving);
 }
@@ -38,7 +40,7 @@ void MyGraphicsScene::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 //        moving->moveBy(p.x() - moving_start.x(), p.y() - moving_start.y());
 //        moving_start = p;
 //        this->update();
-        emit itemMoved(moving);
+        emit itemMoved(moving, oldPos);
     }
     QGraphicsScene::mouseMoveEvent(event);
 }

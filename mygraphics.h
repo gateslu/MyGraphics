@@ -52,7 +52,7 @@ private slots:
 
     void addCustomItem();
     void itemClicked(QGraphicsItem *item);
-    void itemMoved(QGraphicsItem *item);
+    void itemMoved(QGraphicsItem *item, const QPointF &oldPosition);
     void selectionChanged();
     void valueChanged(QtProperty *property, const QVariant &value);
 

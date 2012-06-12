@@ -16,7 +16,7 @@ public:
 
 signals:
     void itemClicked(QGraphicsItem *item);
-    void itemMoved(QGraphicsItem *item);
+    void itemMoved(QGraphicsItem *item, const QPointF &movedFromPosition);
     void itemStopMoving(bool released);
 
 protected:
@@ -29,6 +29,8 @@ private:
     QGraphicsItem *moving;
     QPointF moving_start;
     bool isPressing;
+    QGraphicsItem *movingItem;
+    QPointF oldPos;
 };
 
 #endif // MYGRAPHICSSCENE_H
