@@ -45,6 +45,7 @@
 
 #include <QGraphicsItem>
 #include "mygraphicsscene.h"
+#include "global_types.h"
 
 //! [0]
 class MoveCommand : public QUndoCommand
@@ -53,6 +54,10 @@ public:
     enum { Id = 1234 };
 
     MoveCommand(QGraphicsItem *graphicsItem, const QPointF &oldPos,
+                QUndoCommand *parent = 0); //QMap<QGraphicsItem *, QPointF>
+
+    MoveCommand(QMap<QGraphicsItem *, QPointF> itemsnewpos,
+                QMap<QGraphicsItem *, QPointF> itemsoldpos,
                 QUndoCommand *parent = 0);
 
     void undo();
@@ -64,8 +69,47 @@ private:
     QGraphicsItem *myGraphicsItem;
     QPointF myOldPos;
     QPointF newPos;
+
+    QMap<QGraphicsItem *, QPointF> myItemsPos;
+    QList<QPointF> myOldPosList;
+    QList<QPointF> newPosList;
 };
 //! [0]
+
+//! [1]
+class DeleteCommand : public QUndoCommand
+{
+public:
+    DeleteCommand(MyGraphicsScene *scene, QUndoCommand *parent = 0);
+
+    void undo();
+    void redo();
+
+private:
+    QGraphicsItem *myDiagramItem;
+    QList<QGraphicsItem *> myDiagramItemList;
+    MyGraphicsScene *myGraphicsScene;
+};
+//! [1]
+
+//! [2]
+class AddCommand : public QUndoCommand
+{
+public:
+    AddCommand(QString itemType, MyGraphicsScene *graphicsScene, qreal value,
+               QUndoCommand *parent = 0);
+    ~AddCommand();
+
+    void undo();
+    void redo();
+
+private:
+    QGraphicsItem *myDiagramItem;
+    MyGraphicsScene *myGraphicsScene;
+    QPointF initialPosition;
+    qreal z_value;
+};
+//! [2]
 
 QString createCommandString(QGraphicsItem *item, const QPointF &point);
 

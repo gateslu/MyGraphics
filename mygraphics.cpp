@@ -35,10 +35,12 @@
 #endif
 #include <cmath>
 #include <limits>
+#include <stdlib.h>
 #include <QDebug>
 #include <QSvgGenerator>
 #include "undocommands/commands.h"
 
+const qreal itemzValue = 1.0;
 const int OffsetIncrement = 5;
 const qint32 MagicNumber = 0x5A93DE5;
 const qint16 VersionNumber = 1;
@@ -48,7 +50,7 @@ const QString MimeType = "application/MyGraphic";
 MyGraphics::MyGraphics(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MyGraphics),
-    pasteOffset(OffsetIncrement)
+    pasteOffset(OffsetIncrement), z_value(itemzValue), maxValue(-10000.0)
 {
     ui->setupUi(this);
 
@@ -72,8 +74,11 @@ MyGraphics::MyGraphics(QWidget *parent) :
     originP = QPointF(scene->width()/2, scene->height()/2);
 
     connect(scene, SIGNAL(itemClicked(QGraphicsItem*)), this, SLOT(itemClicked(QGraphicsItem*)));
-    connect(scene, SIGNAL(itemMoved(QGraphicsItem*, QPointF)), this, SLOT(itemMoved(QGraphicsItem*, QPointF)));
+    connect(scene, SIGNAL(itemsMoving(QGraphicsItem *)),this, SLOT(itemsMoving(QGraphicsItem *)));
+    connect(scene, SIGNAL(itemsMoved(QMap<QGraphicsItem*,QPointF>, QMap<QGraphicsItem*,QPointF>)),
+            this, SLOT(itemsMoved(QMap<QGraphicsItem*,QPointF>, QMap<QGraphicsItem*,QPointF>)));
     connect(scene, SIGNAL(selectionChanged()), this, SLOT(selectionChanged()));
+    connect(this, SIGNAL(firstSelectedItem(QGraphicsItem*)), scene, SLOT(firstSelectedItem(QGraphicsItem*)));
 
     view = new GluGraphicsView();
     view->setScene(scene);
@@ -102,8 +107,8 @@ MyGraphics::MyGraphics(QWidget *parent) :
 
 MyGraphics::~MyGraphics()
 {
-//    delete printer;
-//    delete ui;
+    //    delete printer;
+    //    delete ui;
 }
 
 //操作历史
@@ -118,8 +123,8 @@ void MyGraphics::createUndoView()
 void MyGraphics::showEvent(QShowEvent *event)
 {
     QMainWindow::showEvent(event);
-//    QSettings settings;
-//    QString filename = settings.value(MostRecentFile).toString();
+    //    QSettings settings;
+    //    QString filename = settings.value(MostRecentFile).toString();
     //    if (filename.isEmpty() || filename == tr("Unnamed"))
     QTimer::singleShot(0, this, SLOT(fileNew()));
     //    else {
@@ -148,7 +153,6 @@ void MyGraphics::fileNew()
     clear();
     this->setWindowFilePath(tr("Unnamed"));
     setDirty(false);
-    qDebug() << "3";
 }
 
 //打开文件
@@ -172,27 +176,27 @@ void MyGraphics::addCustomItem()
 
     QString itemType = itemButton->objectName();
 
-    QGraphicsItem *item = 0;
-    if (itemType == "iRectB")
-    {
-        item = new iRect;
-    }
-    else if (itemType == "iEllipseB")
-    {
-        item = new iEllipse;
-    }
-    else if (itemType == "iTextB")
-    {
-        item = new iText;
-    }
+    //    qDebug() << z_value;
+    QUndoCommand *addCommand = new AddCommand(itemType, scene ,z_value);
+    undoStack->push(addCommand);
+    z_value++;
 
-    if (item == 0)
-    {
-        delete item;
-        return;
-    }
-    scene->addItem(item);
-    scene->selectedItem(item);
+    //    QGraphicsItem *item = 0;
+    //    if (itemType == "iRectB")
+    //    {
+    //        item = new iRect;
+    //    }
+    //    else if (itemType == "iEllipseB")
+    //    {
+    //        item = new iEllipse;
+    //    }
+    //    else if (itemType == "iTextB")
+    //    {
+    //        item = new iText;
+    //    }
+
+    //    scene->addItem(item);
+    //    scene->selectedItem(item);
     setDirty(true);
 }
 
@@ -394,8 +398,7 @@ void MyGraphics::createActions()
     editCopyAction->setShortcuts(QKeySequence::Copy);
     editCutAction = new QAction(QIcon(":images/editcut.png"), tr("Cu&t"),
                                 this);
-    editCutAction->setShortcuts(QList<QKeySequence>()
-                                << QKeySequence::Cut << Qt::Key_Delete);
+    editCutAction->setShortcuts(QKeySequence::Cut);
     editPasteAction = new QAction(QIcon(":images/editpaste.png"),
                                   tr("&Paste"), this);
     editPasteAction->setShortcuts(QKeySequence::Paste);
@@ -757,21 +760,6 @@ bool MyGraphics::fileSaveAs()
 void MyGraphics::writeItems(QDataStream &out,
                             const QList<QGraphicsItem*> &itemList)
 {
-    //    foreach (QGraphicsItem *item, itemList) {
-    //        //        if (item == gridGroup || item->group() == gridGroup)
-    //        //            continue;
-    //        qint32 type = static_cast<qint32>(item->type());
-    //        out << type;
-    //        switch (type) {
-    //        case MG_TYPE_IRECT:
-    //            out << dynamic_cast<iRect*>(item);
-    //            qreal zvalue;
-    //            zvalue = item->zValue();
-    //            out << zvalue;
-    //            break;
-    //        default: Q_ASSERT(false);
-    //        }
-    //    }
     out << MagicNumber << VersionNumber;
     int sceneItemsize = 0;
     for(int i=0;i<itemList.size();i++)
@@ -795,7 +783,6 @@ void MyGraphics::writeItems(QDataStream &out,
             out << iRect::Type;
             iRect *piRect = dynamic_cast<iRect*>(itemList.at(i));
             out << piRect;
-            piRect->setZValue(0.0-i);
             out << piRect->zValue();
             break;
         }
@@ -804,7 +791,6 @@ void MyGraphics::writeItems(QDataStream &out,
             out << iEllipse::Type;
             iEllipse *piEllipse = dynamic_cast<iEllipse*>(itemList.at(i));
             out << piEllipse;
-            piEllipse->setZValue(0.0-i);
             out << piEllipse->zValue();
             break;
         }
@@ -813,7 +799,6 @@ void MyGraphics::writeItems(QDataStream &out,
             out << iText::Type;
             iText *piText = dynamic_cast<iText*>(itemList.at(i));
             out << piText;
-            piText->setZValue(0.0-i);
             out << piText->zValue();
             break;
         }
@@ -841,18 +826,16 @@ void MyGraphics::loadFile()
 //清空scene
 void MyGraphics::clear()
 {
-    //    QList<QGraphicsItem*> list = scene->items();
-    //    for (int i = 0; i < list.size(); ++i) {
-    //        scene->removeItem(list.at(i));
-    //    }
+    undoStack->clear();
     scene->clear();
+    z_value = 1.0;
+    maxValue = -10000.0;
     viewRestore();
 }
 
 //读取文件中的item
-void MyGraphics::readItems(QDataStream &in, int offset, bool select)
+void MyGraphics::readItems(QDataStream &in)
 {
-    QSet<QGraphicsItem*> items;
     qint32 itemType;
     QGraphicsItem *item = 0;
     qint32 magicNumber;
@@ -862,7 +845,6 @@ void MyGraphics::readItems(QDataStream &in, int offset, bool select)
 
     int sceneItemsize = 0;
     in >> sceneItemsize;
-    qDebug() << sceneItemsize;
 
     while (sceneItemsize > 0 && !in.atEnd())
     {
@@ -904,17 +886,129 @@ void MyGraphics::readItems(QDataStream &in, int offset, bool select)
             break;
         }
         }
+
+    }
+}
+
+//剪切板中的item
+void MyGraphics::readItems(QDataStream &in, int offset, bool select)
+{
+    QList<QGraphicsItem*> itList;
+    QSet<QGraphicsItem*> items;
+    qint32 itemType;
+    QGraphicsItem *item = 0;
+    qint32 magicNumber;
+    qint16 versionNumber;
+
+    in >> magicNumber >> versionNumber;
+
+    int sceneItemsize = 0;
+    in >> sceneItemsize;
+
+    int count = scene->items().size();
+
+    qDebug() << "count =" << count;
+
+    maxValue = -10000.0;
+
+    if (count > 0)
+        foreach (QGraphicsItem *item, scene->items())
+        {
+            maxzValue(item->zValue());
+        }
+    else
+        maxValue = 0.0;
+
+
+    qDebug() << "maxValue" << maxValue;
+
+    while (sceneItemsize > 0 && !in.atEnd())
+    {
+        sceneItemsize--;
+        in >> itemType;
+        switch (itemType)
+        {
+        case MG_TYPE_IRECT:
+        {
+            iRect *it = new iRect();
+            in >> it;
+            scene->addItem(it);
+            qreal zvalue;
+            in >> zvalue;
+            it->setZValue(zvalue);
+            item = it;
+            break;
+        }
+        case MG_TYPE_IELLIPSE:
+        {
+            iEllipse *it = new iEllipse();
+            in >> it;
+            scene->addItem(it);
+            qreal zvalue;
+            in >> zvalue;
+            it->setZValue(zvalue);
+            item = it;
+            break;
+        }
+        case MG_TYPE_ITEXT:
+        {
+            iText *it = new iText();
+            in >> it;
+            scene->addItem(it);
+            qreal zvalue;
+            in >> zvalue;
+            it->setZValue(zvalue);
+            item = it;
+            break;
+        }
+        }
+        itList.append(item);
         if (item) {
             item->moveBy(offset, offset);
             if (select)
                 items << item;
             item = 0;
         }
+        //        qDebug() << "itList" << itList.at(0);
+        z_value++;
+    }
+    //    qDebug() << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^";
+    //    qDebug() << "before" << itList;
+    //    qDebug() << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^";
+    setItemszValue(itList);
+    //    qDebug() << "after" << itList;
+    //    qDebug() << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^";
+    qreal pastezValue = maxValue + 1;
+    for (int m = 0; m < itList.size(); m++)
+    {
+        itList.at(m)->setZValue(pastezValue++);
     }
     if (select)
         selectItems(items);
     //    else
     //        selectionChanged();
+}
+
+
+//当前最大的zValue
+void MyGraphics::maxzValue(qreal mxValue)
+{
+    maxValue = (mxValue > maxValue ? mxValue : maxValue);
+}
+
+//冒泡法排序
+void MyGraphics::setItemszValue(QList<QGraphicsItem *> &itList)
+{
+    int i ,j;                //定义2个变量
+    int itemCount = itList.size()-1;
+    for (i = 0; i < itemCount; i++)      //进行N轮排序
+    {
+        for(j = 0; j < itemCount - i; j++) //每轮进行N-i次交换
+            if(itList.at(j)->zValue() > itList.at(j + 1)->zValue())
+            {
+                itList.swap(j, j+1);   //大的沉底，小的上浮
+            }
+    }
 }
 
 //展开
@@ -957,12 +1051,6 @@ void MyGraphics::itemClicked(QGraphicsItem *item)
         //        deleteAction->setEnabled(false);
         return;
     }
-    //    qDebug() << item;
-    //    qDebug() << "scenewidth:" << scene->width();
-    //    qDebug() << "sceneheight:" << scene->height();
-    //    qDebug() << "x:" << item->scenePos().x();
-    //    qDebug() << "y:" << item->scenePos().y();
-    //    qDebug() << "z:" << item->scenePos().y();
 
     //    deleteAction->setEnabled(true);
 
@@ -981,8 +1069,8 @@ void MyGraphics::itemClicked(QGraphicsItem *item)
     addProperty(property, QLatin1String("ypos"));
 
     property = variantManager->addProperty(QVariant::Double, tr("Position Z"));
-    property->setAttribute(QLatin1String("minimum"), -1000);
-    property->setAttribute(QLatin1String("maximum"), 1000);
+    property->setAttribute(QLatin1String("minimum"), -20000);
+    property->setAttribute(QLatin1String("maximum"), 20000);
     property->setValue(item->zValue());
     addProperty(property, QLatin1String("zpos"));
 
@@ -1071,15 +1159,18 @@ void MyGraphics::selectionChanged()
     QList<QGraphicsItem*> items = scene->selectedItems();
     if (items.count() == 1) {
         itemClicked(items.at(0));
+        //        qDebug() << "1 item";
+        emit firstSelectedItem(items.at(0));
     }
     else if (items.count() == 0)
     {
+        //        qDebug() << "0 item";
         itemClicked(0);
     }
 }
 
 //移动item
-void MyGraphics::itemMoved(QGraphicsItem *item, const QPointF &oldPosition)
+void MyGraphics::itemsMoving(QGraphicsItem *item)
 {
     if (item != currentItem)
         return;
@@ -1094,8 +1185,12 @@ void MyGraphics::itemMoved(QGraphicsItem *item, const QPointF &oldPosition)
             this, SLOT(valueChanged(QtProperty *, const QVariant &)));
     setDirty(true);
     scene->update();
+}
 
-    undoStack->push(new MoveCommand(item, oldPosition));
+//停止移动
+void MyGraphics::itemsMoved(QMap<QGraphicsItem *, QPointF> itemsnewpos, QMap<QGraphicsItem*,QPointF> itemsoldpos)
+{
+    undoStack->push(new MoveCommand(itemsnewpos, itemsoldpos));
 }
 
 //修改item属性
@@ -1252,7 +1347,9 @@ void MyGraphics::editCleanScreen()
                                    QMessageBox::Yes,
                                    QMessageBox::No);
     if (ret == 0x00004000)
+    {
         clear();
+    }
 }
 
 //item移到前方
@@ -1314,17 +1411,20 @@ void MyGraphics::editDelete()
     QList<QGraphicsItem*> items = scene->selectedItems();
     if (items.isEmpty())
         return;
-    QListIterator<QGraphicsItem*> i(items);
-    while (i.hasNext()) {
-#if QT_VERSION >= 0x040600
-        QScopedPointer<QGraphicsItem> item(i.next());
-        scene->removeItem(item.data());
-#else
-        QGraphicsItem *item = i.next();
-        scene->removeItem(item);
-        delete item;
-#endif
-    }
+
+    QUndoCommand *deleteCommand = new DeleteCommand(scene);
+    undoStack->push(deleteCommand);
+    //    QListIterator<QGraphicsItem*> i(items);
+    //    while (i.hasNext()) {
+    //#if QT_VERSION >= 0x040600
+    //        QScopedPointer<QGraphicsItem> item(i.next());
+    //        scene->removeItem(item.data());
+    //#else
+    //        QGraphicsItem *item = i.next();
+    //        scene->removeItem(item);
+    //        delete item;
+    //#endif
+    //    }
     itemClicked(0);
     setDirty(true);             //窗口标题增加*,用来标记文件已被修改
 }

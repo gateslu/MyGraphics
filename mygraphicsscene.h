@@ -1,11 +1,14 @@
 #ifndef MYGRAPHICSSCENE_H
 #define MYGRAPHICSSCENE_H
 
+#include <QtCore>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsSceneDragDropEvent>
 #include <QGraphicsScene>
 #include <QGraphicsItem>
 #include <QObject>
+#include <QList>
+#include <QMap>
 
 class MyGraphicsScene : public QGraphicsScene
 {
@@ -16,8 +19,13 @@ public:
 
 signals:
     void itemClicked(QGraphicsItem *item);
-    void itemMoved(QGraphicsItem *item, const QPointF &movedFromPosition);
+    void itemsMoving(QGraphicsItem *item);
+    void itemsMoved(QMap<QGraphicsItem*, QPointF> itemsnewpos,
+                    QMap<QGraphicsItem*, QPointF> itemsoldpos);
     void itemStopMoving(bool released);
+
+public slots:
+    void firstSelectedItem(QGraphicsItem *item);
 
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent *event);
@@ -26,10 +34,12 @@ protected:
     void dragMoveEvent(QGraphicsSceneDragDropEvent *event);
 
 private:
+    QList<QGraphicsItem*> itemlist;
+    QMap<QGraphicsItem*, QPointF> itemsOldPos;
+    QMap<QGraphicsItem*, QPointF> itemsNewPos;
     QGraphicsItem *moving;
     QPointF moving_start;
     bool isPressing;
-    QGraphicsItem *movingItem;
     QPointF oldPos;
 };
 

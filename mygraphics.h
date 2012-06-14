@@ -9,6 +9,8 @@
 #include "global_types.h"
 #include <QGraphicsItem>
 #include <QShowEvent>
+#include <QMap>
+#include <QList>
 
 QT_BEGIN_NAMESPACE
 class QAction;
@@ -37,22 +39,31 @@ public:
     void setDirty(bool on);
     void loadFile();
     void clear();
-    void readItems(QDataStream &in, int offset=0, bool select=false);
+    void readItems(QDataStream &in);
+    void readItems(QDataStream &in, int offset, bool select);
 
     void updateExpandState();
 
     void addProperty(QtVariantProperty *property, const QString &id);
 
+    void maxzValue(qreal mxValue);
+    void setItemszValue(QList<QGraphicsItem*> &itList);
+
 protected:
     void showEvent(QShowEvent *event);
     void closeEvent(QCloseEvent *event);
+
+signals:
+    void firstSelectedItem(QGraphicsItem *item);
 
 private slots:
     void createUndoView();
 
     void addCustomItem();
     void itemClicked(QGraphicsItem *item);
-    void itemMoved(QGraphicsItem *item, const QPointF &oldPosition);
+    void itemsMoving(QGraphicsItem *item);
+    void itemsMoved(QMap<QGraphicsItem*, QPointF> itemsnewpos,
+                    QMap<QGraphicsItem*, QPointF> itemsoldpos);
     void selectionChanged();
     void valueChanged(QtProperty *property, const QVariant &value);
 
@@ -151,6 +162,8 @@ private:
     QUndoView *undoView;
 
     int pasteOffset;
+    qreal z_value;
+    qreal maxValue;
 };
 
 #endif // MYGRAPHICS_H
