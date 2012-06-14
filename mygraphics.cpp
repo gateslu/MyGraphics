@@ -176,10 +176,21 @@ void MyGraphics::addCustomItem()
 
     QString itemType = itemButton->objectName();
 
-    //    qDebug() << z_value;
-    QUndoCommand *addCommand = new AddCommand(itemType, scene ,z_value);
+    int count = scene->items().size();
+
+    maxValue = -10000.0;
+
+    if (count > 0)
+        foreach (QGraphicsItem *item, scene->items())
+        {
+            maxzValue(item->zValue());
+        }
+    else
+        maxValue = 0.0;
+
+    QUndoCommand *addCommand = new AddCommand(itemType, scene ,maxValue+1);
     undoStack->push(addCommand);
-    z_value++;
+//    z_value++;
 
     //    QGraphicsItem *item = 0;
     //    if (itemType == "iRectB")
