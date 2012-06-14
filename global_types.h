@@ -15,4 +15,6 @@ enum item_types
 };
 typedef item_types ITEMTYPES;
 
+
+enum EditType { Cut=0, Delete };
 #endif // GLOBAL_TYPES_H

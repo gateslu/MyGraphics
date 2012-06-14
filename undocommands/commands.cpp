@@ -131,9 +131,20 @@ void MoveCommand::redo()
 //! [3]
 
 //! [4]
-DeleteCommand::DeleteCommand(MyGraphicsScene *scene, QUndoCommand *parent)
+DeleteCommand::DeleteCommand(int etype, MyGraphicsScene *scene, QUndoCommand *parent)
     : QUndoCommand(parent)
 {
+    if (etype == Delete)
+    {
+        undoActinText = QObject::tr("³·ÏúÉ¾³ý");
+        redoActinText = QObject::tr("É¾³ý");
+    }
+    else if (etype == Cut)
+    {
+        undoActinText = QObject::tr("³·Ïú¼ôÇÐ");
+        redoActinText = QObject::tr("¼ôÇÐ");
+    }
+
     myGraphicsScene = scene;
     QList<QGraphicsItem *> list = myGraphicsScene->selectedItems();
     list.first()->setSelected(false);
@@ -143,7 +154,6 @@ DeleteCommand::DeleteCommand(MyGraphicsScene *scene, QUndoCommand *parent)
 
 //    setText(QObject::tr("Delete %1")
 //        .arg(createCommandString(myDiagramItem, myDiagramItem->pos())));
-    setText(QObject::tr("É¾³ý"));
 }
 //! [4]
 
@@ -155,6 +165,7 @@ void DeleteCommand::undo()
         myGraphicsScene->addItem(myDiagramItemList.at(i));
     }
     myGraphicsScene->update();
+    setText(undoActinText);
 }
 //! [5]
 
@@ -164,6 +175,7 @@ void DeleteCommand::redo()
     for (int i = 0; i < myDiagramItemList.size(); i++)
         myGraphicsScene->removeItem(myDiagramItemList.at(i));
     myGraphicsScene->clearSelection();
+    setText(redoActinText);
 }
 //! [6]
 
@@ -196,7 +208,7 @@ AddCommand::AddCommand(QString itemType, MyGraphicsScene *scene,
                               (itemCount * 15) % int(scene->height()));
     scene->update();
     ++itemCount;
-    setText(QObject::tr("·ÅÖÃ"));
+//    setText(QObject::tr("·ÅÖÃ"));
 //        .arg(createCommandString(myDiagramItem, initialPosition)));
 }
 //! [7]
@@ -212,6 +224,7 @@ void AddCommand::undo()
 {
     myGraphicsScene->removeItem(myDiagramItem);
     myGraphicsScene->update();
+    setText(QObject::tr("³·Ïú·ÅÖÃ"));
 }
 //! [8]
 
@@ -224,6 +237,7 @@ void AddCommand::redo()
     myGraphicsScene->clearSelection();
 //    myGraphicsScene->selectedItem(myDiagramItem);
     myGraphicsScene->update();
+    setText(QObject::tr("·ÅÖÃ"));
 }
 //! [9]
 
@@ -233,3 +247,56 @@ QString createCommandString(QGraphicsItem *item, const QPointF &pos)
             .arg(item->type())
             .arg(pos.x()).arg(pos.y());
 }
+
+//! [10]
+PasteCommand::PasteCommand(QList<QGraphicsItem *> pasteList,
+                           MyGraphicsScene *graphicsScene,
+                           bool select,
+                           qreal maxzValue, QUndoCommand *parent)
+: QUndoCommand(parent)
+{
+    itemList = pasteList;
+     myGraphicsScene = graphicsScene;
+     isSeletctItem = select;
+     maxZValue = maxzValue;
+}
+//! [10]
+
+//! [11]
+PasteCommand::~PasteCommand()
+{
+}
+//! [11]
+
+//! [12]
+void PasteCommand::undo()
+{
+    for (int m = 0; m < itemList.size(); m++)
+    {
+        myGraphicsScene->removeItem(itemList.at(m));
+    }
+    myGraphicsScene->update();
+    setText(QObject::tr("³·ÏúÕ³Ìù"));
+}
+//! [12]
+
+//! [13]
+void PasteCommand::redo()
+{
+    qreal pastezValue = maxZValue + 1;
+    for (int m = 0; m < itemList.size(); m++)
+    {
+        itemList.at(m)->setZValue(pastezValue++);
+        myGraphicsScene->addItem(itemList.at(m));
+    }
+    if (isSeletctItem)
+    {
+        myGraphicsScene->clearSelection();
+        foreach (QGraphicsItem *item, itemList)
+            item->setSelected(true);
+    }
+    setText(QObject::tr("Õ³Ìù"));
+}
+//! [13]
+
+

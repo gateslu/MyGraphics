@@ -80,7 +80,7 @@ private:
 class DeleteCommand : public QUndoCommand
 {
 public:
-    DeleteCommand(MyGraphicsScene *scene, QUndoCommand *parent = 0);
+    DeleteCommand(int etype, MyGraphicsScene *scene, QUndoCommand *parent = 0);
 
     void undo();
     void redo();
@@ -89,6 +89,8 @@ private:
     QGraphicsItem *myDiagramItem;
     QList<QGraphicsItem *> myDiagramItemList;
     MyGraphicsScene *myGraphicsScene;
+    QString undoActinText;
+    QString redoActinText;
 };
 //! [1]
 
@@ -110,6 +112,29 @@ private:
     qreal z_value;
 };
 //! [2]
+
+//! [3]
+class PasteCommand : public QUndoCommand
+{
+public:
+    PasteCommand(QList<QGraphicsItem*> pasteList,
+                 MyGraphicsScene *graphicsScene,
+                 bool select,
+                 qreal maxzValue,
+                 QUndoCommand *parent = 0);
+    ~PasteCommand();
+
+    void undo();
+    void redo();
+
+private:
+    QList<QGraphicsItem*> itemList;
+    MyGraphicsScene *myGraphicsScene;
+    bool isSeletctItem;
+    qreal maxZValue;
+
+};
+//! [3]
 
 QString createCommandString(QGraphicsItem *item, const QPointF &point);
 

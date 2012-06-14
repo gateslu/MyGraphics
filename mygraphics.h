@@ -40,7 +40,7 @@ public:
     void loadFile();
     void clear();
     void readItems(QDataStream &in);
-    void readItems(QDataStream &in, int offset, bool select);
+    QList<QGraphicsItem*> readItems(QDataStream &in, int offset);
 
     void updateExpandState();
 

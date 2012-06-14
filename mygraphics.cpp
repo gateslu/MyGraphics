@@ -308,17 +308,20 @@ void MyGraphics::editCut()
     if (items.isEmpty())
         return;
     copyItems(items);
-    QListIterator<QGraphicsItem*> i(items);
-    while (i.hasNext()) {
-#if QT_VERSION >= 0x040600
-        QScopedPointer<QGraphicsItem> item(i.next());
-        scene->removeItem(item.data());
-#else
-        QGraphicsItem *item = i.next();
-        scene->removeItem(item);
-        delete item;
-#endif
-    }
+//    QListIterator<QGraphicsItem*> i(items);
+//    while (i.hasNext()) {
+//#if QT_VERSION >= 0x040600
+//        QScopedPointer<QGraphicsItem> item(i.next());
+//        scene->removeItem(item.data());
+//#else
+//        QGraphicsItem *item = i.next();
+//        scene->removeItem(item);
+//        delete item;
+//#endif
+//    }
+    QUndoCommand *deleteCommand = new DeleteCommand(Cut,scene);
+    undoStack->push(deleteCommand);
+
     setDirty(true);
 }
 
@@ -346,7 +349,8 @@ void MyGraphics::editPaste()
     if (mimeData->hasFormat(MimeType)) {
         QByteArray copiedItems = mimeData->data(MimeType);
         QDataStream in(&copiedItems, QIODevice::ReadOnly);
-        readItems(in, pasteOffset, true);
+//        readItems(in, pasteOffset);
+        undoStack->push(new PasteCommand(readItems(in, pasteOffset), scene, true, maxValue));
         pasteOffset += OffsetIncrement;
     }
     else
@@ -886,12 +890,11 @@ void MyGraphics::readItems(QDataStream &in)
             break;
         }
         }
-
     }
 }
 
 //¼ôÇÐ°åÖÐµÄitem
-void MyGraphics::readItems(QDataStream &in, int offset, bool select)
+QList<QGraphicsItem*> MyGraphics::readItems(QDataStream &in, int offset)
 {
     QList<QGraphicsItem*> itList;
     QSet<QGraphicsItem*> items;
@@ -932,7 +935,7 @@ void MyGraphics::readItems(QDataStream &in, int offset, bool select)
         {
             iRect *it = new iRect();
             in >> it;
-            scene->addItem(it);
+//            scene->addItem(it);
             qreal zvalue;
             in >> zvalue;
             it->setZValue(zvalue);
@@ -943,7 +946,7 @@ void MyGraphics::readItems(QDataStream &in, int offset, bool select)
         {
             iEllipse *it = new iEllipse();
             in >> it;
-            scene->addItem(it);
+//            scene->addItem(it);
             qreal zvalue;
             in >> zvalue;
             it->setZValue(zvalue);
@@ -954,7 +957,7 @@ void MyGraphics::readItems(QDataStream &in, int offset, bool select)
         {
             iText *it = new iText();
             in >> it;
-            scene->addItem(it);
+//            scene->addItem(it);
             qreal zvalue;
             in >> zvalue;
             it->setZValue(zvalue);
@@ -965,8 +968,7 @@ void MyGraphics::readItems(QDataStream &in, int offset, bool select)
         itList.append(item);
         if (item) {
             item->moveBy(offset, offset);
-            if (select)
-                items << item;
+            items << item;
             item = 0;
         }
         //        qDebug() << "itList" << itList.at(0);
@@ -978,15 +980,16 @@ void MyGraphics::readItems(QDataStream &in, int offset, bool select)
     setItemszValue(itList);
     //    qDebug() << "after" << itList;
     //    qDebug() << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^";
-    qreal pastezValue = maxValue + 1;
-    for (int m = 0; m < itList.size(); m++)
-    {
-        itList.at(m)->setZValue(pastezValue++);
-    }
-    if (select)
-        selectItems(items);
-    //    else
-    //        selectionChanged();
+
+    return itList;
+//    qreal pastezValue = maxValue + 1;
+//    for (int m = 0; m < itList.size(); m++)
+//    {
+//        itList.at(m)->setZValue(pastezValue++);
+//        scene->addItem(itList.at(m));
+//    }
+//    if (select)
+//        selectItems(items);
 }
 
 
@@ -1412,7 +1415,7 @@ void MyGraphics::editDelete()
     if (items.isEmpty())
         return;
 
-    QUndoCommand *deleteCommand = new DeleteCommand(scene);
+    QUndoCommand *deleteCommand = new DeleteCommand(Delete, scene);
     undoStack->push(deleteCommand);
     //    QListIterator<QGraphicsItem*> i(items);
     //    while (i.hasNext()) {
